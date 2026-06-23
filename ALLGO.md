@@ -61,6 +61,27 @@ ___Critical Rules of Go Variables___:
 - The Unused Variable Constraint: The Go compiler strictly treats unused local variables as a build error. If you declare a variable inside a function and do not read from it, your program will refuse to compile. This keeps binary sizes lean and stops dead code accumulation.
 - The Blank Identifier (_): If a function returns multiple values (such as data and an error) and you do not need one of those variables, you must assign it to the blank identifier _ to discard it safely without triggering the unused variable compiler error.
 
+__Constants__ are static primitive values that cannot be changed or re-assigned. They are declared using the `const` keyword and the assignment operator not the _walrus_. They can also be grouped with `()`. They have to be computed at compile time, therefore using things like `time.Now()` would not work for a constant.
+```go
+package main
+func main() {
+	const hello = "Hello World!"
+} 
+```
+
+When it comes to formatting in go there are two ways in which it can be done using the `fmt` package:
+- `fmt.Printf()`: Prints to the standard out
+- `fmt.Sprintf()`: returns the formatted string
+
+The default symbol is the `%v` which returns any value, while `%s`, `%d`, and `%f` are for string, integers, and floats respectively. The `%T` tells the type of a value.
+```go
+s := fmt.Sprintf("You have %.2f points", 98.4658)
+// You have 98.47 points
+
+fmt.Printf("The type of penniesPerText is %T\n", penniesPerText)
+```
+[_learn more formatting_](https://pkg.go.dev/fmt#hdr-Printing)
+
 ### 🗑️ Basic Data Types
 __Signed__ and __Unsigned__ integers are numeric values that do not have decimals where unsigned are only positive values. The figure after the `int` or `uint` respresents the number of bits which is the size of the value:
 - __Signed__: int (32 or 64 bits based on user environment), int8, int16, int32, int64
@@ -90,6 +111,27 @@ Two strings can be concatenated with the `+` operator but string and an int or f
 
 ## Making Decisions and Loops
 ### ❓ Conditionals
+The code of a condition is executed only if the statement is true. In _Go_ the `if/else` keywords do not need parentheses but they need brackets on the same line as the condition. Variables can also be declared in the statement.
+```go
+if age := 41; age < 30 {
+	fmt.Println(age, "is not in the dating bracket")
+} else if age > 27 && age < 35 {
+	fmt.Println(age, "not too sure")
+} else {
+	fmt.PrintLn(age, "is perfect")
+}
+```
+For __switch__ statements in Go, the _break_ keyword is not required at the end of the __case__, as its implicit. However, the `fallthrough` statement can be used if a case has to fall through to another.
+```go
+switch someone {
+case "No one":
+	message = "Keep looking"
+case "Her":
+	message = "You deserve happiness"
+default:
+	message = "I guess not in this lifetime"
+}
+```
 ### ⭕️ Iterations
 
 ## Functions
