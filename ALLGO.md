@@ -1,11 +1,20 @@
 # All About GO
-__Golang__ is an open-sourced _statically_ (code is checked before runtime) typed, _compiled_ (translates code to binary code) programming language. It was created by system engineers at __Google__ (Ken Thompson, Rob Pike, Robert Griesemer) to provide better performance through speed, scaling, trivial concurrency, and readability than their previous infrastructure. It was designed to be used in network and backedn infrastructures but can be used anywhere really.
+__Golang__ is an open-sourced _statically_ (code is checked before runtime) typed, _compiled_ (translates code to binary code) programming language. It compiles faster than _Rust_, _C_, and _Zig_ but runs slower than them. It was created by system engineers at __Google__ (Ken Thompson, Rob Pike, Robert Griesemer) to provide better performance through speed, scaling, trivial concurrency, and readability than their previous infrastructure. It was designed to be used in network and backend infrastructures but can be used anywhere really.
+
+Although Go is lightweight, its programs produce extra memory that is stored in the _executable binary_ that the __Go Runtime__ cleans up, as it includes a _garbage collector_.
+
+While the `func main() {}` is the main function of the program and the entry point, the __package main__ at the top tells the Go compiler that the code has to be run and compiled as a standalone package. The `import fmt` imports the formatting package from the _standard library_ which allows things like `fmt.Println()` to be used.
 
 ```bash
 brew install go
 
 go version
 which go
+```
+Go __comments__ serve a dual technical purpose: they are structural documentation. The built-in tool `go doc` parses your comments automatically to generate documentation for your code packages.
+```go
+// In-line: use for functions and most other things
+/* Block: for package-specific */
 ```
 What and Why GO
 History
@@ -21,12 +30,61 @@ __Contents__ to master:
 
 ## Understand the Basics
 ### 📇 Variables and Constants
+For memory safety variables are explicitly bound to a specific data and there are two syntax used for declaring them:
+- __Standard Declaration__: Uses the `var` keyword, explicitly state the name, type, and optional value. This allows a developer to initialise a variable without a value or create one at the package level (outside functions).
+- __Shorthand Declaration__: Used inside blocks like functions and loops to provide clean and readable code. It does not specify a type as the compiler would infer the type based on the value at the right of walrus operator`:=`.
+```go
+package main
+import "fmt"
+
+// Package-level
+var name string = "Someone Like You"
+var (
+    age int = 40
+    available bool = True
+)
+
+func main() {
+    // Standard declaration inside a function (often used when value is unknown yet)
+	var operationalLimit int
+	operationalLimit = 500
+
+	// Shorthand declaration (Type inferred as string)
+	environmentName := "Staging_Cluster"
+}
+```
+If a variable is declared with `var` without a value the GO compiler assigns a __Zero Value__ to it instead of undefined like most languages.
+
+Go uses lexical block scoping enforced by curly braces {}. Variables declared inside an inner block (like an if statement, for loop, or function) are invisible to the outer blocks. __Shadowing__ occurs when you declare a variable in an inner block with the exact same name as a variable in an outer block. The inner variable "shadows" (hides) the outer variable, meaning changes inside that block do not affect the outer scope.
+
+___Critical Rules of Go Variables___:
+- The Unused Variable Constraint: The Go compiler strictly treats unused local variables as a build error. If you declare a variable inside a function and do not read from it, your program will refuse to compile. This keeps binary sizes lean and stops dead code accumulation.
+- The Blank Identifier (_): If a function returns multiple values (such as data and an error) and you do not need one of those variables, you must assign it to the blank identifier _ to discard it safely without triggering the unused variable compiler error.
+
 ### 🗑️ Basic Data Types
+__Signed__ and __Unsigned__ integers are numeric values that do not have decimals where unsigned are only positive values. The figure after the `int` or `uint` respresents the number of bits which is the size of the value:
+- __Signed__: int (32 or 64 bits based on user environment), int8, int16, int32, int64
+- __Unsigned__: unit, uint8, uint16, uint32, uint64
+- __Float__: float32, float64 (use)
+- __Complex__: complex64, complex128 (use)
+- __Byte__: byte an alias of uint8
+- __Rune__: rune an alias of int32
+
+```go
+// Convert from float64 to int64
+temperatureFloat := 88.26
+temperatureInt := int64(temperatureFloat)
+```
+With number types, only differ from the defaults if its absolutely necessary like for performance and memory.
+
+
+
 ### 🎥 Documentation and Commands in GO
 
 ## Composite Types
 ### Arrays
 ### Strings
+Two strings can be concatenated with the `+` operator but string and an int or float64 cannot. 
 ### Slices
 ### Maps
 
@@ -52,3 +110,4 @@ __Contents__ to master:
 ## Resources
 - [_Effective GO_](https://go.dev/doc/effective_go)
 - [_GO By Example_](https://gobyexample.com/)
+- [_Golang tutiral series_](https://golangbot.com/learn-golang-series/)
