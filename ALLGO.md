@@ -17,10 +17,34 @@ go mod init structs-demo
 ```
 The `go.mod` file is a plain text file that declares the unique path of your module and states the version of Go your code requires. Historically, Go forced developers to put all their code inside one giant global system folder (the old $GOPATH). Go Modules changed this. A go.mod file tells the Go compiler: "Treat this specific folder as an isolated, self-contained workspace. Any files inside this folder belong to this project." Without it, the compiler cannot track imports or handle third-party libraries. Scripts cannot have _test_ in them as in `struct_test.go`.
 
+Linting is the process of using a specialized tool, known as a linter, to perform static code analysis on source code without executing it.  The primary goal is to automatically detect programming errors, stylistic inconsistencies, and suspicious patterns that compilers or tests might miss, ensuring code adheres to predefined quality and style standards.
+```bash
+brew install golangci-lint
+
+# Run in the same location as go.mod
+golangci-lint run
+# Run on the current directory only (excluding subdirectories)
+golangci-lint run ./...
+
+# Run on a specific file
+golangci-lint run main.go
+
+# Fix: Some linters support automatic fixing
+golangci-lint run --fix
+```
+By default, golangci-lint runs a core set of standard linters (errcheck, gosimple, govet, ineffassign, staticcheck, unused). To enable additional linters on the fly:
+```bash
+# Enable specific extra linters like bodyclose or revive
+golangci-lint run -E bodyclose,revive
+```
+
 Go __comments__ serve a dual technical purpose: they are structural documentation. The built-in tool `go doc` parses your comments automatically to generate documentation for your code packages.
 ```go
 // In-line: use for functions and most other things
 /* Block: for package-specific */
+
+// Package-level and functions for docs start with the package or function name and ends with a dot.
+package rain
 ```
 What and Why GO
 History
@@ -43,7 +67,7 @@ For memory safety variables are explicitly bound to a specific data and there ar
 package main
 import "fmt"
 
-// Package-level
+
 var name string = "Someone Like You"
 var (
     age int = 40
@@ -71,7 +95,7 @@ __Constants__ are static primitive values that cannot be changed or re-assigned.
 ```go
 package main
 func main() {
-	const hello = "Hello World!"
+	const Hello = "Hello World!"
 } 
 ```
 
@@ -110,9 +134,69 @@ With number types, only differ from the defaults if its absolutely necessary lik
 
 ## Composite Types
 ### Arrays
+An __array__ is a fixed sized block of continguous memory that cannot be changed:
+```go
+var someInts [10]int // Array of ten integers
+// Initialised literal
+primes := [6]int{2, 3, 5, 7, 11, 13}
+```
+### Slices
+__Slices__ are dynamically-sized arrays, where _non-nil_ slices always have an underlying array.
+```go
+// Explicitly create a slice on top of an array
+primes := [6]int{2, 3, 5, 7, 11, 13}
+mySlice := primes[1:4]
+// mySlice = {3, 5, 7}
+``` 
+The __length__ of a slice is the number of elements, while the __capacity__ is the length of the underlying array. A slice can be created using the `make()` function where the integer in the brackets are ommited; as if they were included, then the structure would be an array.
+```go
+mySlice := make([]string, 5, 10) // Len: 5, Cap: 10
+// The capacity can be omitted
+// Using a slice literal
+mySlice := []string{"You", "me", "happy"}
+```
+Elements can be assigned and accessed using __indexing__ through bracket notation
+```go
+mySlice[2] = "somewhere" // {You, me, somewhere}
+```
+Function can be __variadic__ where they take any number of arguments.
+```go
+func sum(nums ...int) int {
+	total := 0
+
+	for _, num := range nums {
+		total += num
+	}
+	return total
+}
+
+// Spread operator
+numbers := []int{1, 2, 3}
+sum(numbers...)
+```
+The variadic `append()` function is used to add elements to a slice. If the underlying array is full, it automatically creates a new one:
+```go
+slice = append(slice, oneThing)
+slice = append(slice, firstThing, secondThing)
+slice = append(slice, anotherSlice...)
+```
+
+Slices can easily be iterated over:
+```go
+for index, element := range slice {}
+// These can also be nested and _ can be used if the index is not needed.
+```
+Slices can also contain other slices to create a __matrix__ od 2D element:
+```go
+rows := [][]int{}
+rows = append(rows, []int{1, 2, 3})
+rows = append(rows, []int{4, 5, 6})
+fmt.Println(rows)
+// [[1 2 3] [4 5 6]]
+```
 ### Strings
 Two strings can be concatenated with the `+` operator but string and an int or float64 cannot. 
-### Slices
+
 ### Maps
 
 ## Structs
@@ -232,6 +316,15 @@ default:
 }
 ```
 ### ⭕️ Iterations
+A __loop__ is a unified control structure used to execute a block of code repeatedly based on a condition, counter, or collection traversal. Go only uses __for__ loops to handle iteration which makes memorising code easier. There are 4 styles of shapes the _for loop_ in Go can take:
+1. __Standard 3-Component__: Written in C-like syntax `for INITIAL; CONDITION; AFTER {}`
+2. __Condition-Only (While-style)__: Executes while _true_, `for condition {}`
+3. __Infinite Loop__: Runs forever until break or return, `for {}`, `for initial; after; {}`
+4. __Range Loop__: Iterates over slices, maps, strings or channels. `for index, value := range collection {}`
+
+_Operators_: `&&`, `||`, `%`
+
+The control flow of a loop can be changed with the `continue` and `break` statements. Continue is used to skip an iteration while break is used to stop and exist the loop.
 
 ## Functions
 Functions are created for __reusability__ where any number of inputs are given, some calculation is performed on them and an output is returned. The parameter and return type are not necessary but makes it easier to know what values the function accepts and returns. When multiple arguments are used of the same type, the type only needs to be declared after the last one.
@@ -441,10 +534,96 @@ func divide(x, y float64) (float64, error) {
 ## Organising Code
 ### Module and Dependencies
 ### Packages
+Every Go program is made up of packages which start running in the package `main`. By convention the package name is the same of the last import path such as `package rand` for `math/rand`.
+```go
+package main
+
+import ( // Factored import statement
+	"fmt",
+	"math/rand"
+)
+```
+Exported names begin with a capital letter.
 ### Publishing Modules
+
+## Testing
+Go's standard library includes a __testing__ package that has all the tools needed to perform unit Testing. For detailed output when running tests use the `v` flag:
+```go 
+go test -v
+```
+Writing a test is just like writing a function, with a few rules
+- It needs to be in a file with a name that ends in `_test.go` right next to the file that is being tested. If the file is `hello.go` the test file has to be `hello_test.g0o`.
+- The test function must start with the word `Test`, and all other words must be capitalised.
+- The test function takes one argument only `t *testing.T`, (a pointer to Go's testing state manager from the standard testing package).
+- To use the `*testing.T` type, you need to `import "testing"`.
+
+```go
+package hello
+
+import (
+	"testing"
+)
+
+func TestHello(t *testing.T) {
+	// 1. Arrange: Define your inputs and expected outcomes
+	got := Hello("Chris")
+	want := "Hello, Chris"
+
+	// 2. Act & Assert: Compare the result against your expectation
+	if got != want {
+		// t.Errorf fails the test AND formats a helpful error message
+		// %q: wraps the input in double quotes making white space and empty strings obvious
+		t.Errorf("got %q want %q", got, want)
+	}
+}
+```
+
+_Manual Testing_ is often done with print statements which isn't always reliable for 3 reasons:
+1. __Scaling__: It does not scale, as checking multiple functions can take forever.
+2. __Regression__: Changing code in package B may alter the functionality of package A; automated testing catches this issue.
+3. __Tests are Living Documentation__: A well-written test suite shows any incoming engineer exactly how a function is supposed to be used, what inputs it expects, and what edge cases it handles.
+
+__Go__ uses two functions to report a test failure:
+1. `t.Errorf()`: Marks the test as failed, but continues running the rest of the code in that test function. Use this for general assertions where seeing further output is still helpful.
+2. `t.Fatalf()`: Marks the test as failed and stops execution of that test function immediately. Use this when a failure makes subsequent lines impossible or dangerous to run (e.g., if a setup function failed or a returned pointer is `nil`).
+
+```go
+// BAD: If 'err' is not nil, result is invalid, but t.Errorf lets line 2 run anyway, causing a panic!
+if err != nil {
+    t.Errorf("unexpected error: %v", err)
+}
+fmt.Println(result.Name) // PANIC if result is nil!
+
+// GOOD: Stop execution immediately on fatal prerequisite failure
+if err != nil {
+    t.Fatalf("unexpected error: %v", err)
+}
+fmt.Println(result.Name) // Safe to run
+```
+
+__Complementary Testing Patterns in Go__ enhance the standard `testing` package by organizing tests, isolating dependencies, and managing complex scenarios. These patterns work together to improve maintainability, readability, and reliability of Go test suites.
+
+|Pattern           | Description     | Example                  |
+|:----------------:|:----------------|:-------------------------|
+|__Arrange-Act-Assert (AAA)__| Separates tests into 3 distinct phases: test setup, code execution, verification. This is useful for clarity, maintability, debugging, and standardisation.| func TestAdd(t *testing.T) {<br> // Arrange<br> a := 2<br> b := 3 <br> expected := 5<br> // Act<br> result := Add(a, b)<br> // Assert<br> if result != expected {<br>  t.Errorf("Add(%d, %d) = %d, expected %d", a, b, result, expected)<br>}<br>} |
+| __External Test Packages__| Placing test files in the same folder as source code with the suffix `_test`, creating a black box. _Why_:<br>__API Validation__: ensure the public interface is inituitive and sufficient.<br>__Encapsulation__:  prevents tests from relying on unexported (private) implementation details.<br>__Documentation__: test code serves as an executable documentation.<br>__Import Cycle Prevention__: In complex dependency graphs, external test packages can sometimes help avoid circular import dependencies that might occur if tests were part of the main package. | `package calculator_test`|
+|__Golden Files__ | The expected output of a function is stored in a _reference (golden) file_ instead of string literals. It helps with readability, maintanability and:<br>__Diff Clarity__: When a test fails, version control systems (like Git) show a clear line-by-line diff of exactly what changed in the output, making code reviews much easier.<br>__Complex Data__: It is ideal for testing outputs that are difficult to construct manually, such as binary data, images, or deeply nested JSON structures. | - |
+|__Table-Driven Tests__ | The idiomatic approach for running the same test logic against multiple input/output pairs defined in a slice, keeping tests concise and readable. Used with subtests. | - | - |
+|__Subtests__ | While table-drive tests define multiple test cases, subtests executes each using `t.Run()` as an independent test with its own context. | - | - |
+|__Test Doubles (Mocks, Stubs, Fakes)__ | Objects that replace real dependencies (like databases, APIs, or file systems) during testing. In Go, this is achieved primarily through _interfaces_, allowing you to inject lightweight, predictable implementations that isolate the code under test. It helps with isolation, determinism, speed, and decoupling| - |
+
+
+Using __Subtests__ and __Table-Driven Tests__ together:
+- __Reduced Duplication__: You write the test logic once and reuse it for many scenarios, adhering to the __DRY__ (Don't Repeat Yourself) principle. 
+- __Clear Failure Reporting__: When a test fails, the output explicitly states which subtest failed (e.g., TestDivide/divide_by_zero), making debugging instantaneous.
+- __Granular Control__: You can run, skip, or debug individual test cases without modifying code, simply by using the `-run` flag with the subtest name. 
+- __Parallelism__: Subtests allow you to run test cases in parallel using `t.Parallel()` inside the loop, significantly speeding up test execution for I/O bound or heavy computations. 
+- __Scalability__: Adding a new test case is as simple as adding one line to the table, keeping the test file clean even as coverage grows.
+- __Better Organization__: They transform a flat list of test functions into a hierarchical structure, grouping related scenarios under a single parent test.
 
 ## Resources
 - [_Effective GO_](https://go.dev/doc/effective_go)
 - [_GO By Example_](https://gobyexample.com/)
-- [_Golang tutiral series_](https://golangbot.com/learn-golang-series/)
-
+- [_Golang tutorial series_](https://golangbot.com/learn-golang-series/)
+- [__Awesome Go__](https://awesome-go.com/)
+- [_Learn Go with tests_](https://quii.gitbook.io/learn-go-with-tests)
