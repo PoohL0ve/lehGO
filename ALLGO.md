@@ -193,11 +193,106 @@ rows = append(rows, []int{1, 2, 3})
 rows = append(rows, []int{4, 5, 6})
 fmt.Println(rows)
 // [[1 2 3] [4 5 6]]
+
+func createMatrix(rows, cols int) [][]int {
+	matrixRows := [][]int{}
+
+	for i := 0; i < rows; i++ {
+		// Create a brand NEW row slice for every outer loop iteration
+		columnValues := []int{}
+
+		for j := 0; j < cols; j++ {
+			value := i * j
+			columnValues = append(columnValues, value)
+		}
+
+		// Append the completed row slice directly
+		matrixRows = append(matrixRows, columnValues)
+	}
+
+	return matrixRows
+}
 ```
 ### Strings
 Two strings can be concatenated with the `+` operator but string and an int or float64 cannot. 
 
 ### Maps
+__Maps__ are unordered __key-value__ pair structures, similar to _hash tables_ and _dictionaries_ in other languages. They let you look up values using unique keys with incredibly fast $O(1)$ constant time complexity. A _map_ can be created in 3 main ways:
+```go
+// 1. Zero Value (Nil Map) — DANGER
+var m1 map[string]int 
+
+// 2. Using make() — PREFERRED
+m2 := make(map[string]int)
+
+// 3. Map Literal — PREFERRED for initial data
+m3 := map[string]int{
+    "alice": 25,
+    "bob":   30,
+}
+```
+_Reading_ from an uninitialised is safe and returns zero-values, but _writing_ to it causes a __runtime panic__.
+
+Elements can be accessed, inserted, and deleted easily with maps:
+|Mutation        | Example                |
+|:--------------:|:-----------------------|
+|__Insert__ | `myMap[key] = value` |
+|__Access__ | `value = myMap[key]` |
+|__Delete__ | `delete(myMap, key)` |
+|__If Exists__ | `value, ok := myMap[key]` |
+
+For _map_ data structures, __values__ can be anything, however __keys__ must be __comparable (==, !=)__ types like int, float64, string, user-defines structs, bool, pointer, channels, and interfaces. it cannot be functions, maps, slices, or stucts of maps and slices.
+
+To see if a value exists or if a _key_ returns 0 (entry does not exist), the __comma ok__ idiom is used:
+```go
+// Read returns two values: (value, exists)
+val, ok := ages["Alex"]
+if !ok {
+    fmt.Println("Key 'Alex' does not exist in the map!")
+}
+
+// Compact idiomatic form:
+if val, ok := ages["Chris"]; ok {
+    fmt.Println("Chris is found, age:", val)
+}
+```
+The best way to iterate over maps is `for key, value := range map {}`:
+```go
+inventory := map[string]int{
+    "apples":  10,
+    "bananas": 5,
+    "oranges": 8,
+}
+
+for item, count := range inventory {
+    fmt.Printf("%s: %d\n", item, count)
+}
+```
+_Note_: Go explicitly randomises the starting index when iterating through maps with _range_ so developers would not have to write code that depends on map orders. If you need __deterministic order__, extract the keys into a slice, sort the slice, and loop over the slice! __Maps__ can have __ONLY ONE VALUE__ associated with keys.
+
+Mops can also be nested:
+```go
+map[string]map[string]int
+map[rune]map[string]int
+map[int]map[string]map[string]int
+```
+
+#### Maps Under The Hood
+__Maps__ are similar to _slices_ in that they are references, so if they are modified within a function, they changed the _caller's_ map.
+
+There can be a _concurrency_ danger in Go as _maps_ are not thread-safe (behaves correctly when accessed by threads), therefore if goroutine reads from a map, while another goroutine writes to it simultaneously, the program would crash with an unrecoverable panic: `fatal error: concurrent map writes`. For concurrent access maps must be protected using `sync.RWMutex` or `sync.Map`.
+
+In Go, a map is a pointer to a runtime struct called `hmap`:
+- __Buckets__: A Go map consists of an array of buckets (each bucket holds up to 8 key-value pairs).
+- __Hashing__: When you do `m["key"]`, Go hashes "key" into a 64-bit integer.Part of the hash determines which bucket to look in. Another part of the hash (Top Hash) identifies the key inside the bucket.
+- __Growing__: When buckets get too full (Load Factor $\approx 6.5$), Go automatically allocates a new bucket array (2x capacity) and incrementally copies elements over.
+- __Pre-allocation Performance Tip__: Like slices, maps re-hash and resize as they grow. If you know you need to store ~1,000 items, pre-allocate space to avoid runtime re-allocation costs:
+```go
+// Pre-allocates space for ~1000 entries
+userScores := make(map[string]int, 1000)
+```
+
+
 
 ## Structs
 __Structs__ are used to represent structured data where data that needs to be grouped into a single unit can be placed there. __Go__ rejects OOP, avoiding inheritance hierachies and heavy virtual-table objects, therefore, structs are used. Structs operate at both ends of the abstraction spectrum:
@@ -304,6 +399,18 @@ if age := 41; age < 30 {
 	fmt.PrintLn(age, "is perfect")
 }
 ```
+An _if_ statement can be combined with an assignment operation to use the variable inside an if block:
+```go
+names := map[string]int{}
+missingNames := []string{}
+
+if _, ok := names["Denna"]; !ok {
+    // if the key doesn't exist yet,
+    // append the name to the missingNames slice
+    missingNames = append(missingNames, "Denna")
+}
+```
+
 For __switch__ statements in Go, the _break_ keyword is not required at the end of the __case__, as its implicit. However, the `fallthrough` statement can be used if a case has to fall through to another.
 ```go
 switch someone {
