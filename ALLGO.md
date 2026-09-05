@@ -536,6 +536,55 @@ __How Can It Be Broken__:
 
 
 ## Pointers
+__Pointers__ are essential for how Go manages memory and data structures. A __pointer__ is a _variable_ that stores the __memory address__ of another value, rather than storing the value itself. _Why are pointers needed_:
+- __Efficiency__: Passing a massive struct or array to a function copies all its data. Passing a pointer copies only a tiny memory address (8 bytes on 64-bit systems)
+- __Mutability__: In _Go_ everything is passed by __value__ (copied), so for a function to modify a variable created outside of it, a pointer must be passed to the variable.
+
+__🧠 Mental Model__: _Memory_ can be seen as a massive row of post office boxes. Let's say a normal variable `x := 42` is the contents inside _Box #104_, while a pointer `p := &x` is a sticky note that reads _Box #104_. If the sticky note is passed to a team mate, they don't get a clone of what's inside the box; they get the address so they can go to _Box #104_ and change what's inside it directly.
+
+Go uses two operators for pointers:
+1. `*`: The __dereference operator__ is used to read or write the actual value inside the memory box: `var p *int = &x`.
+2. `&`: The __address-of operator__ gets the memory address of a variable: `myStringPtr := &myString`.
+
+__Nil pointers__ or empty pointers such as `var p *int` means that there is no memory address being pointed to. Instead of starting with a nil pointer, it's common to use the & operator to get a pointer to its operand:
+```go
+myString := "hello"      // myString is just a string
+myStringPtr := &myString // myStringPtr is a pointer to myString's address
+
+fmt.Printf("value of myStringPtr: %v\n", myStringPtr)
+// value of myStringPtr: 0x140c050
+```
+Trying to dereference a _nil pointer_ leads to an immediate runtime crash. Therefore, it is important to verify that a pointer is not nil: `if p != nil`.
+Go does not have a pointer arithmetic like C does.
+
+When dealing with pointers for structs, stick to using a _selector expression_:
+```go
+// Selector Expression
+msgTotal := analytics.MessagesTotal
+// Do not do this:
+msgTotal := *analytics.MessagesTotal
+```
+
+Methods with pointer receivers can modify the value to which the receiver points. Since methods often need to modify their receiver, pointer receivers are more common than value receivers. However, methods with pointer receivers don't require that a pointer is used to call the method. The pointer will automatically be derived from the value.
+```go
+type car struct {
+	color string
+}
+
+func (c *car) setColor(color string) {
+	c.color = color
+}
+
+func main() {
+	c := car{
+		color: "white",
+	}
+	c.setColor("blue")
+	fmt.Println(c.color)
+	// prints "blue"
+}
+```
+
 
 ## Methods and Interfaces
 ### Interfaces
@@ -639,19 +688,82 @@ func divide(x, y float64) (float64, error) {
  
 
 ## Organising Code
-### Module and Dependencies
 ### Packages
-Every Go program is made up of packages which start running in the package `main`. By convention the package name is the same of the last import path such as `package rand` for `math/rand`.
+Every Go program is made up of packages which start running in the package `main`, which has an entry point ath the `main()` function. A _main_ package can be compiled into an executable program. By convention the package name is the same of the last import path such as `package rand` for `math/rand`. A package by any other name is a __library package__ that have no entry points and are used to export functionalities to other packages.
 ```go
 package main
 
 import ( // Factored import statement
-	"fmt",
+	"fmt"
 	"math/rand"
 )
 ```
 Exported names begin with a capital letter.
+
+A single directory of __Go__ code must have __ONE__ package (library packages included) where all `.go` files in the directory must belong to it. 
 ### Publishing Modules
+A __module__ is a collection of Go packages that are realeased together. There must be one module per repo, where a file named `go.mod` declares it at the root of a project. The file contains:
+```plaintext
+module path: module playground
+version: go 1.27.1
+optional dependency: require script
+```
+
+Each module's path not only serves as an import path prefix for the packages within but also indicates where the go command should look to download it. For example, to download the module _golang.org/x/tools_, the go command would consult the repository located at _https://golang.org/x/tools_.
+
+An "import path" is a string used to import a package. A package's import path is its module path joined with its subdirectory within the module. For example, the module github.com/google/go-cmp contains a package in the directory cmp/. That package's import path is github.com/google/go-cmp/cmp. Packages in the standard library do not have a module path prefix.
+
+Avoid manually storing projects in the `$GOPATH`, the environmental variable will be set up by default.
+
+```bash
+# Declaring a module
+go mod init {REMOTE}/{USERNAME}/hellogo
+
+# Print contents
+cat go.mod
+```
+
+The `go run` command is used to quickly compile and run packages where the compiled binary is not stored in the local directory. The command is used in local development to run, test, and debug code. 
+
+Genenrally the file in the main package that contains the `main()` function is named `main.go`.
+```bash
+go run main.go
+```
+
+The `go build` command compiles code into a single statically linked executable program. This command is used in production which creates a statically compiled binary, it can be shipped to end users.
+```bash
+go build
+# Run program 
+./hellogo
+```
+It only builds an executable for `main`, but will still compile code used on other packages and save it to the local compile cache.
+
+
+The `go install` command compiles and installs a package or packages on your local machine for your personal usage. By default, it installs the package's compiled binary in _$GOPATH/bin_. This means it can be used anywhere on your local machine. The command has to be ran inside the directory like `hellogo`. Simply call the package or directory name anywhere on the machine and the program runs. If you want to install a global CLI tool built by someone else without polluting your current module's go.mod, use go install path/to/tool@latest from anywhere on your machine.
+
+To uninstall a binary installed via `go install` (like hellogo), you simply need to delete the compiled executable file from your Go binary directory (`$GOPATH/bin` or `$HOME/go/bin`). As Go does not maintain a package manager registry for install CLI binaries, uninstalling it only means removing from the disk.
+```bash
+which hellogo
+rm $(go env GOPATH)/bin/hellogo
+```
+
+The `replace` keyword shoul only be used in local environtments, like in the [example](workspace/hellogo/go.mod). The ideal way to depend on and use modules is to publish them to a remote repository. Simply use the `go get` command for the package which will automatically update the `go.mod` file.
+```bash
+go get github.com/wagslane/go-tinytime
+```
+
+__Rules of Thumb__:
+1. Hide internal logic: only export function that are capitalised.
+2. Don't Change APIs: Don't modify the exported functions unecessarily.
+3. Don't Export Functions From the Main Package
+4. Packages Shouldn't Know About Dependencies: Should not have knowledge about any application that is using it.
+
+When you run go get or build with external dependencies, Go automatically creates and updates a `go.sum` file.
+- __What it is__: A lockfile containing cryptographic hashes (checksums) of specific dependency versions.
+- __Why it exists__: It guarantees security and reproducible builds so that nobody can secretly tamper with or change the code of a published dependency version you rely on. Always commit go.sum to version control alongside go.mod.
+
+Go strictly forbids circular dependencies (Package A imports Package B, and Package B imports Package A). If this happens, go build will fail with an import cycle not allowed error.
+- Fix: Extract shared logic/types into a third, independent package (Package C) that both A and B can import.
 
 ## Testing
 Go's standard library includes a __testing__ package that has all the tools needed to perform unit Testing. For detailed output when running tests use the `v` flag:
