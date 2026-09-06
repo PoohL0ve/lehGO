@@ -840,6 +840,236 @@ Using __Subtests__ and __Table-Driven Tests__ together:
 - __Scalability__: Adding a new test case is as simple as adding one line to the table, keeping the test file clean even as coverage grows.
 - __Better Organization__: They transform a flat list of test functions into a hierarchical structure, grouping related scenarios under a single parent test.
 
+## Concurrecy
+Go is a __concurrent__ language. __Concurrency__ is the ability to make progress on multiple tasks before waiting for each one to finish. __Parallelism__ is the ability to run multiple tasks at the same time, such as with multiple cores where each core can run a task. Currency is handled in go using Goroutines and Channels.
+
+### Goroutines
+A __goroutine__ is a lightweight indepedently executing function or method managed by the __Go runtime__ and not the OS itself. They can be seen as tiny threads where the cost to executing them is significantly less than traditional threads. Go applications have thousands of them running concurrently. _Why Goroutines_:
+- They utilised roughly _2kb_ in stack size which can grow and shrink based on the application needs compared to threads that use a fixed size of roughly _1-2mb_ of memory stack space and switching between them (context switching) requires expensive CPU kernel overhead.
+- Goroutines are multplixed (mapped) onto operating system threads. There might be only one thread in a program with thousands of Goroutines. If any Goroutine in that thread blocks, another OS thread is created and the remaining goroutines are sent to it.
+- Goroutines are managed by channels, which prevent race conditions when accessing shared memory.
+
+A _goroutine_ is created by prepending the `go` keyword to methods and functions:
+```go
+func main() {
+	go sayHello() // Starts sayHello concurrently
+
+	fmt.Println("Hello from main!")
+	
+	// Temporary pause so main doesn't terminate immediately
+	time.Sleep(100 * time.Millisecond) 
+}
+```
+
+The `main()` function runs its own goroutine which is the main goroutine. 
+- __Main Goroutine Control__: Every Go program starts with one primary goroutine: the main() function. When main() returns, the entire program terminates immediately, abruptly killing any other background goroutines—even if they haven't finished!
+- __Asynchronous Execution__: The `go` keyword returns immediately. It does not wait for the function to complete before moving to the next line of code.
+
+ Using time.Sleep() to wait for goroutines is fragile and non-deterministic (you never know how long a task will take). Without using channels the standard library offers `sync.WaitGroup` to wait for goroutines to finish. A sync.WaitGroup acts as a thread-safe counter:
+- `.Add(n)`: Increases the counter by `n` (the number of goroutines to wait for).
+- `.Done()`: Decrements the counter by `1` (called inside the goroutine when finished).
+- `.Wait()`: Blocks execution until the counter reaches `0`.
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+func worker(id int, wg *sync.WaitGroup) {
+	// Ensure wg.Done() is called when the function returns
+	defer wg.Done() 
+
+	fmt.Printf("Worker %d starting\n", id)
+	time.Sleep(time.Millisecond * 500) // Simulate work
+	fmt.Printf("Worker %d done\n", id)
+}
+
+func main() {
+	var wg sync.WaitGroup
+
+	for i := 1; i <= 3; i++ {
+		wg.Add(1)          // Increment counter BEFORE launching
+		go worker(i, &wg)  // MUST pass WaitGroup as a POINTER!
+	}
+
+	wg.Wait() // Block until counter drops to 0
+	fmt.Println("All workers finished!")
+}
+```
+___Crucial Rule___: Always pass `sync.WaitGroup` by pointer (`*sync.WaitGroup`) into functions. If you pass it by value, the function receives a copy, `.Done()` will decrement the copy's counter, and `main()` will block forever in a deadlock.
+
+### Channels
+__Channels__ are typed thread-safe conduits (pipes/queues) that are used to send and receive values between goroutines. They allow goroutines to communicate by passing data safely instead of locking memory to shared data through _mutexes_. Go's core philosophy is: <q><em>Do not communicate by sharing memory; instead, share memory by communicating.</em></q>
+
+Channels are defined using the `make()` function similar to maps and slices and must have a type associated with it which indicates the type of value the channel can receive and send. The `<-` operator is called the __channel operator__. Data flows in the direction of the arrow. This operation will block until another goroutine is ready to receive the value.
+- __Send to channel__: `ch <- "data"` (Push value into channel)
+- __Receive from channel__: `val := <-ch` (Pull value out of channel). This operation will block until there is a value in the channel to be read. Channels are __First-In-First-Out (FIFO)__, meaning values are received in the same order they are sent.
+```go
+ch := make(chan int)
+ch <- 70
+rec := <-ch
+```
+Channels are __referenced types__, therefore changes made inside a function will affect the original.
+
+__N.B__: Watch out for __deadlocks__ which occurs when gorutines are blocked where none of them can be executed.
+
+In some cases what is passed through a channel (`rec := <-ch`) is not needed, but we need to know if something passed (signal). This is achieved using `<-ch`, which allows us to block and wait for something to pass through a channel.
+```go
+func waitForDBs(numDBs int, dbChan chan struct{}) {
+	for i := 0; i < numDBs; i++ {
+		<-dbChan
+	}
+	
+}
+```
+
+__Buffered Channels__ can be created by adding a capacity to the `make()`, allowing the channel to hold a fixed number of values before sending blocks. Sends only block when the buffer is full. Receives only block when the buffer is empty.
+```go
+ch := make(chan int, 2) // Holds up to 2 items without blocking
+
+ch <- 1 // Does not block
+ch <- 2 // Does not block
+// ch <- 3 // WOULD BLOCK because capacity is 2
+
+fmt.Println(<-ch) // 1
+fmt.Println(<-ch) // 2
+```
+
+Channels can be explicitly closed by the sender using the `close()` to indicate that no more values are being sent. To check for a closed channel use the __ok idiom__, where false indicates the channel is empty or closed:
+```go 
+close(ch)
+val, ok := <-ch
+if !ok {
+	// Channel is closed and empty!
+}
+```
+Sending on a closed channel will cause a panic. A panic on the main goroutine will cause the entire program to crash, and a panic in any other goroutine will cause that goroutine to crash. Closing isn't necessary. There's nothing wrong with leaving channels open, they'll still be garbage collected if they're unused.
+
+The `for range` loop can be used to iterate over a channel and pull items off and terminate when the channel is closed.
+```go
+for item := range ch {
+    // item is the next value received from the channel
+}
+```
+### Select
+The `select` statement allows a goroutine to wait on multiple channel operations simultaneously. It allows a program to respond to whichever channel is ready first, handle timeouts, or perform non-blocking channel checks. It is structurally similar to a `switch` statement, except each case must be a channel operation.
+```go
+select {
+case i, ok := <-chInts:
+	if ok {
+		fmt.Println(i)
+	}
+case s, ok := <-chStrings:
+	if ok {
+		fmt.Println(s)
+	}
+}
+```
+Adding a `default` case makes the `select` non-blocking: if no channels are ready right now, the default block executes immediately.
+
+Values of channels can also be ignore in two ways:
+```go
+case <-ch:
+case _ = <-ch:
+```
+
+_Tickers_:
+- `time.Tick()` is a standard library function that returns a channel that sends a value on a given interval.
+- `time.After()` sends a value once after the duration has passed.
+- `time.Sleep()` blocks the current goroutine for the specified duration of time.
+
+The function take a duration as an argument and without adding a time unit it will default to _nanoseconds_:
+```go
+time.Tick(500 * time.Millisecond)
+```
+Channels can also be read-only or write-only
+```go
+// Using functions to do so
+func readCh(ch <-chan int) {}
+func writeCh(ch chan<- int) {}
+```
+
+### Mutex
+Sometimes passing data through channels is overkill or inefficient. Imagine multiple goroutines that all need to read and update a single, shared value—like a total user count, an in-memory cache, or a database connection pool. If two goroutines try to write to the exact same variable at the exact same millisecond, you get a data race, which leads to memory corruption and unpredictable bugs. Instead of passing that variable back and forth over a channel, Go gives us __Mutexes__(short for Mutual Exclusion) to _lock_ the memory directly ("Communicate by sharing memory safely"). A _Mutex_ acts as a digital lock on a block of code, which guarantees that only one goroutine can execute a critical section of code or access a shared variable at any given time. It is called a mutex (mu) because it excludes other threads or goroutines from accessing the same data at the same time.
+
+__🧠 Mental Model__: Think of a Mutex as a single-occupancy public restroom with a key:
+- A goroutine grabs the key (`mutex.Lock()`) and enters the restroom (accesses the shared data).
+- If a second goroutine arrives while the key is in use, it must wait in line at `mutex.Lock()` until the first goroutine finishes.
+- Once the first goroutine finishes, it puts the key back (`mutex.Unlock()`), allowing the next goroutine in line to take the key and enter.
+
+The standard library provides a built-in implementation of a mutex with its `sync.Mutex` type and two methods:
+- `Lock()`: acquire the lock.
+- `Unlock()`: ensure lock releases when the function completes
+```go
+type SafeCounter struct {
+	mu    sync.Mutex // The lock protecting the map
+	counts map[string]int
+}
+
+func (c *SafeCounter) Increment(key string) {
+	c.mu.Lock()   // 1. Acquire the lock (blocks if another goroutine holds it)
+	defer c.mu.Unlock() // 2. Ensure lock release when function completes
+
+	// 3. CRITICAL SECTION: Safe to read/write shared data here!
+	c.counts[key]++
+}
+```
+_Maps_ are not concurrent safe, therefore mutexes should be used with them.
+
+_Rules_:
+- __ALWAYS `defer mu.Unlock()`: Immediately after locking a mutex with `mu.Lock()`, use `defer mu.Unlock()`. If your function panics or returns early due to an error before unlocking, the mutex remains locked forever, causing every other goroutine to deadlock!
+- __Mutexes MUST be passed by a POINTER__: Like `sync.WaitGroup`, never copy a `sync.Mutex`. If you pass a struct containing a sync.Mutex by value (copy) into a function, the function gets a copy of the lock. Locking the copy does not protect the original data, destroying your thread safety!
+
+An `RWMutex` _(Read/Write Mutex)_ is a specialized lock that differentiates between __readers__ (who only view data without changing it) and __writers__ (who modify data). _WHY_: Standard mutexes block everyone—even if ten goroutines just want to read a value at the same time. If your application reads data 95% of the time and only writes 5% of the time (like an in-memory cache or config settings), a standard mutex creates an unnecessary bottleneck. RWMutex lets multiple readers access data simultaneously while still keeping writers safe.
+
+__🧠 Mental Model__: Think of `RWMutex` as a library reading room:
+- Multiple Readers (`RLock`): Unlimited people can enter the room to read the books at the same time. They don't get in each other's way because nobody is changing the text.
+- One Writer (`Lock`): A writer is an editor coming in to rewrite the books. When the editor enters, everyone else must clear out. No readers can enter, and no other writers can enter until the editor finishes.
+
+`sync.RWMutex` provides two sets of methods:
+- __Reading__: `mu.RLock` and `defer mu.RUnlock`
+- __Writing__: `mu.Lock` and `defer mu.Unlock`
+
+```go
+package main
+
+import (
+	"sync"
+)
+
+type UserCache struct {
+	mu    sync.RWMutex
+	users map[string]string
+}
+
+// Read Operation: Multiple goroutines can run Get() concurrently!
+func (c *UserCache) Get(id string) (string, bool) {
+	c.mu.RLock()         // Acquire Read Lock
+	defer c.mu.RUnlock() // Release Read Lock
+
+	name, exists := c.users[id]
+	return name, exists
+}
+
+// Write Operation: Exclusive lock - blocks all readers and other writers!
+func (c *UserCache) Set(id string, name string) {
+	c.mu.Lock()         // Acquire Write Lock
+	defer c.mu.Unlock() // Release Write Lock
+
+	c.users[id] = name
+}
+```
+![Mutex Comparison](images/mutex_comparison.png)
+
+__How RWMutex Can Break (The Writer Starvation Trap)__: While `RWMutex` is great for performance, it introduces one tricky edge case to watch out for:
+- If readers are constantly acquiring `RLock()`, a writer waiting for `Lock()` could theoretically be blocked forever (starvation).
+- To prevent this, Go's `RWMutex` implementation gives __priority__ to writers: as soon as a writer calls `Lock()`, new readers are blocked from getting an `RLock()` until the pending writer finishes.
+
+
+
 ## Resources
 - [_Effective GO_](https://go.dev/doc/effective_go)
 - [_GO By Example_](https://gobyexample.com/)
