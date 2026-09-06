@@ -1068,7 +1068,35 @@ __How RWMutex Can Break (The Writer Starvation Trap)__: While `RWMutex` is great
 - If readers are constantly acquiring `RLock()`, a writer waiting for `Lock()` could theoretically be blocked forever (starvation).
 - To prevent this, Go's `RWMutex` implementation gives __priority__ to writers: as soon as a writer calls `Lock()`, new readers are blocked from getting an `RLock()` until the pending writer finishes.
 
+## Generics
+It was introduced in Go version 1.18 to remove code duplication and provide resusability by allowing you to write functions and data structures that work with multiple types, using type parameters instead of concrete types. __Why__: Before generics, if you wanted a function to reverse a slice of ints and a slice of strings, you had to either write duplicate functions (reverseInts, reverseStrings) or use interface{} (empty interface), which stripped away compile-time type safety and required runtime type assertions.
 
+A generic function uses `[]` to declare type parameters before the actual arguments `()`:
+```go
+// T is a placeholder for ANY type
+func FirstElement[T any](s []T) (T, bool) {
+	if len(s) == 0 {
+		var zero T // Returns zero value for type T
+		return zero, false
+	}
+	return s[0], true
+}
+```
+The `any` keyword allows any data type to be used. However, with comparison like `<` or `>` structs and maps can't used. Go fixes this by using __Type Constraints (interfaces)__, these are closed type-sets (list) that list the types and not methods to restrict what types T can accept.
+```go
+// Custom constraint allowing only int or float64
+type Number interface {
+	int | float64
+}
+
+func Add[T Number](a, b T) T {
+	return a + b
+}
+```
+Generics are often used in libraries and packages that many applications import.
+
+## Go Proverbs
+[Rob Pike](https://www.youtube.com/watch?v=PAAkCSZUG1c)
 
 ## Resources
 - [_Effective GO_](https://go.dev/doc/effective_go)
