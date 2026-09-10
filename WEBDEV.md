@@ -526,7 +526,175 @@ func handleResponse(resp *http.Response) {
 ```
 
 ### Paths
+A URL __path__ is a location string that comes after the domain name and port (if given) but before query parameters and fragments.
+```plaintext
+https://api.boot.dev:8080 /v1/courses/golang/lessons ?sort=asc #summary
+                         └────────── Path ──────────┘
+```
+It identifies a specific resource hierarchy or routing on a server. While the domain gets the network request to the right server, the path tells the web application router which function or database entity needs to handle the request.
+
+Paths are dynamic and can include:
+| Concept | Example | Primary Purpose / Meaning |
+| :--- | :--- | :--- |
+| **Root Path** | `/` | Points to the base index or homepage of a server. |
+| **API Versioning** | `/v1/...` or `/v2/...` | Isolates API releases so breaking changes don't crash old client apps. |
+| **Path Parameter** | `/users/{id}` or `/users/:id` | Dynamic variables embedded directly inside the path segment. |
+| **Normalized Path** | `/a/b/` vs `/a/b` | Canonical formatting; trailing slashes often route to different handlers! |
+| **Relative Path** | `../images/logo.png` | Path resolved relative to the current location rather than server root. |
+
+__Representational State Transfer (REST)__ is a popular convention that HTTP servers follow. However, it is a lose set of rules, meaning it is not bound in stone or strict but they provide reliability and predictability of how APIs should be built. 
+- __Separate and Agnostic__: The cleint and server can be created independently usng different languages.
+- __Stateless__: Clients and servers do not need to know what state each other is in to interact. <q>_Statelessness in REST is enforced by interacting with resources instead of commands. Keep in mind, this doesn't mean the applications are stateless - what would "updating a resource" even mean if the server wasn't keeping track of its state?_</q>[- Boot.dev](https://www.boot.dev/lessons/5d349587-60a3-458a-8ec4-2ce01620c238).
+
+Go's standard library provides the `path` package (for URL paths) and the `net/url` package to manipulate path components safely:
+```go
+package main
+
+import (
+	"fmt"
+	"net/url"
+	"path"
+)
+
+func main() {
+	// 1. Parsing a path from a raw URL
+	u, err := url.Parse("https://api.example.com/v1/users/42")
+	if err != nil {
+		return
+	}
+	fmt.Println("Path:", u.Path) // Output: /v1/users/42
+
+	// 2. Joining path segments safely (Handles slashes automatically!)
+	// Always use 'path' (POSIX slashes /) for URLs, NOT 'filepath' (which uses \ on Windows)
+	basePath := "/v1/courses"
+	subPath := "golang/lessons"
+	fullPath := path.Join(basePath, subPath)
+	fmt.Println("Clean Path:", fullPath) // Output: /v1/courses/golang/lessons
+
+	// 3. Extracting path metadata
+	fmt.Println("Dir:", path.Dir(u.Path))   // Output: /v1/users
+	fmt.Println("Base:", path.Base(u.Path)) // Output: 42
+}
+```
+Query Parameters are __key-value__ pairs appended to the end of a URL string following a question mark `?` and separated by ampersands `&`, where the `?` is only needed once even for multiple queries. They filter, sort, page, or search the resource from the path without altering the fundamental endpoint path. Think of a URL path as selecting the database table, and query parameters as appending a WHERE / ORDER BY / LIMIT clause:
+```plaintext
+https://api.example.com /v1/products ?category=tech&sort=price_asc&page=2
+                        └─ Table ──┘ └──────── WHERE / ORDER BY ────────┘
+```
+The server path remains /v1/products, but the query parameters tell the server backend handler how to shape the returned dataset.
+| Feature | Path Parameters | Query Parameters |
+| :--- | :--- | :--- |
+| **Syntax** | `/users/42` or `/orders/101` | `/users?id=42` or `/orders?status=shipped` |
+| **Purpose** | **Resource Identification:** Locates a specific entity or parent-child hierarchy. | **Resource Manipulation:** Filtering, sorting, searching, or paginating datasets. |
+| **Required?** | Almost always required to reach the handler/endpoint. | Usually optional (backend falls back to default settings). |
+| **Example Use** | Target a single record: `/posts/my-first-post` | Fetch a list: `/posts?tag=golang&limit=5` |
+
+Go represents query parameters as `url.Values`, which is defined as `map[string][]string`:
+```go
+package main
+
+import (
+	"fmt"
+	"net/url"
+)
+
+func main() {
+	// 1. Parsing query parameters from a URL
+	u, err := url.Parse("https://api.boot.dev/v1/courses?sort=desc&limit=10&tag=go&tag=web")
+	if err != nil {
+		return
+	}
+
+	// u.Query() parses RawQuery into a url.Values map
+	queryParams := u.Query()
+
+	// Get single values (Get returns the FIRST value associated with the key)
+	sortOrder := queryParams.Get("sort")
+	fmt.Println("Sort:", sortOrder) // Output: desc
+
+	// Read multiple values for a single key directly from the slice
+	tags := queryParams["tag"]
+	fmt.Println("Tags:", tags) // Output: [go web]
+
+	// 2. Modifying & Encoding Query Parameters safely
+	params := url.Values{}
+	params.Set("search", "golang & networking") // Handles spaces and special chars!
+	params.Set("page", "1")
+	params.Add("filter", "active")
+
+	// Encode() returns an HTTP-safe query string
+	fmt.Println("Encoded Query:", params.Encode())
+	// Output: search=golang+%26+networking&page=1&filter=active
+}
+```
 
 ### HTTPS
+__Hypertext Transfer Protocol Secure (HTTPS)__ is an entension of the HTTP protocol that __secures__ the data transfer between client and server by __encrypting__ the entire communication. It does this by using the __Transport Layer Security (TLS)__ formerly known as __SSL__. Plain HTTP sends requests and responses in clear text. Anyone sitting on the same network (like public Wi-Fi) can sniff, intercept, or tamper with sensitive data like passwords, API keys, or personal details. HTTPS ensures privacy, data integrity, and server authentication. _HTTPS_ has 3 core security guarantees:
+1. __Confidentiality (Encryption)__: Protects data from eavesdroppers.
+2. __Integrity__: Prevents middle-man tampering as the client can instantly detect if a packet was tampered with during transit.
+3. __Authentication__: Uses __TLS Certificates__ (digital identity documents) that uses digital signatures issued by trusted Certificate Authorities (CAs) to prove that servers are who they say they are.
+
+When making a request in Go, the `http.Client` automatically handles the complex TLS cryptographic handshake.
+
+HTTPS do not hide _who you are_ or that you are communicating with a given server.
+
+__How It Can Be Broken__:
+1. __Self-Sugned Signatures and Local Development__: When developing locally (`https://localhost`), servers often use self-signed TLS certificates that aren't signed by an official Certificate Authority. Go's standard `http.Client` will reject these by default with an error: `x509: certificate signed by unknown authority`.
+2. __Expired Certificates__: TLS certificates expire (typically every 90 days to 1 year). If a server forgets to renew its certificate, Go's HTTP client will refuse to connect, throwing a certificate error to protect your application from talking to a potentially compromised server.
+
+| Feature | Plain HTTP | Secure HTTPS |
+| :--- | :--- | :--- |
+| **Protocol / Scheme** | `http://` | `https://` |
+| **Default Port** | Port `80` | Port `443` |
+| **Data Format** | Plain text (unencrypted). | Scrambled ciphertext (TLS encrypted). |
+| **Handshake Process** | Simple TCP 3-way handshake. | TCP handshake + TLS cryptographic handshake. |
+| **Security Risk** | Vulnerable to Man-in-the-Middle (MitM) attacks and sniffing. | Secure against sniffing and packet tampering. |
+
+The `http.Client` can be configured with a `tls.config` object to override how the Go runtime validates TLS certificates during HTTPS handshakes.
+| Approach | Syntax Pattern | When to Use | Security Impact |
+| :--- | :--- | :--- | :--- |
+| **`InsecureSkipVerify`** | `&tls.Config{InsecureSkipVerify: true}` | Quick local dev, sandboxed testing, prototyping. | **UNSAFE for production.** Vulnerable to Man-in-the-Middle attacks. |
+| **`RootCAs (CertPool)`** | `&tls.Config{RootCAs: certPool}` | Staging environments, local dev with `mkcert` or local CAs. | **SAFE.** Only trusts explicitly added certificates while maintaining encryption integrity. |
+
+```go
+package main
+
+import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
+)
+
+func newLocalHTTPSClient(certPath string) (*http.Client, error) {
+	// 1. Read local certificate file
+	pemData, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Create a new cert pool and attach the local CA/cert
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("failed to parse root certificate")
+	}
+
+	// 3. Configure TLS to use the custom cert pool
+	tlsConfig := &tls.Config{
+		RootCAs: certPool, // Trust ONLY system defaults + this local cert
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+		Timeout: 5 * time.Second,
+	}
+
+	return client, nil
+}
+```
 ### Errors
 ### cURL
