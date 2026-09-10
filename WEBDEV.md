@@ -323,8 +323,210 @@ This shows that there are typical 8 components to a URL, but not all are require
 - Image BY <a href="https://www.boot.dev/lessons/2d85b1ef-5577-4f65-88ca-e4264059b7af">__Boot.dev__</a>.
 
 ### Headers
+__HTTP Headers__ are _key-value_ pairs sent in both HTTP requests and responses to pass metadata alongside the main body payload. The body contains the actual message (like a JSON object), but the server and client need instructions on how to handle that message such as what format the data is in, how to authenticate the user, or whether to cache the content. It's the label of a package.
+
+Common Headers Developers Use:
+| Header Name | Type | Purpose & Common Values |
+| :--- | :--- | :--- |
+| **`Content-Type`** | Both | Specifies the media format of the body (e.g., `application/json`, `text/html`, `multipart/form-data`). |
+| **`Accept`** | Request | Tells the server what format the client prefers to receive back (e.g., `application/json`). |
+| **`Authorization`** | Request | Carries authentication credentials (e.g., `Bearer <token>`, `Basic <base64>`). |
+| **`User-Agent`** | Request | Identifies the software making the request (e.g., `Mozilla/5.0`, `PostmanRuntime`, `Go-http-client/1.1`). |
+| **`Set-Cookie`** | Response | Asks the browser/client to store a session cookie for future requests. |
+| **`Location`** | Response | Tells the client where to redirect when returning a 3xx status code. |
+
+The `net/http` package provides tools like `Header` to interact with HTTP headers. The _Header_ type is a map of string slices `map[string][]string`.
+
+__Example__:
+```go
+func main() {
+	req, err := http.NewRequest("GET", "https://api.boot.dev/v1/courses", nil)
+	if err != nil {
+		return
+	}
+
+	// 1. Setting a header (Overwrites existing values)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer MY_API_KEY")
+
+	// 2. Adding a header (Appends to existing values for multi-value headers)
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Accept", "text/plain")
+
+	// 3. Reading a header (Case-insensitive!)
+	authHeader := req.Header.Get("authorization") // Handles canonical formatting automatically!
+	fmt.Println("Auth:", authHeader)
+
+	// 4. Deleting a header
+	req.Header.Del("Authorization")
+}
+```
+__Common Mistakes__:
+1. __Case Sensitivity & CanonicalMIMEHeaderKey__: HTTP specification states headers are case-insensitive (Content-Type vs content-type). Go automatically normalizes header keys using canonical formatting (capitalizing the first letter and any letter after a hyphen).
+	- If you read headers using req.Header.Get("content-type"), Go automatically converts it to "Content-Type" for map lookup.
+	- The Pitfall: If you access the map directly with map syntax req.Header["content-type"], it will fail and return nil because Go map lookups are strictly case-sensitive! Always use .Get() or .Set().
+2. __Setting Headers on `http.Get()`: Shorthand functions like `http.Get()` or `http.Post()` do not allow you to attach custom headers. If you need to send an Authorization or custom User-Agent header, you must use `http.NewRequest()` and `client.Do()`.
+
+The command `CMD + Opt + I` opens the developer tools.
+
 ### Methods
+__HTTP Methods__ (also called HTTP Verbs) are standardized commands defined in the HTTP specification that tell the server what primary action to perform on a given resource URL. Instead of creating dozens of custom API endpoints like `/getUser`, `/createUser`, or `/deleteUser`, HTTP methods allow you to use a single endpoint (`/users`) and convey the intended operation directly through the request verb: __GET /users, POST /users, DELETE /users/123__. The server inspects the method verb first to determine what action to take with the request.
+
+__Types of HTTP Verbs__:
+| Method | CRUD Action | Safe? | Idempotent? | Expects Request Body? | Primary Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`GET`** | Read | **Yes** | **Yes** | No | Retrieves data without modifying anything on the server. |
+| **`POST`** | Create | No | No | **Yes** | Submits new data to create a new resource on the server. |
+| **`PUT`** | Update | No | **Yes** | **Yes** | Replaces an entire existing resource with a new representation. |
+| **`PATCH`** | Update | No | No | **Yes** | Applies partial modifications/updates to an existing resource. |
+| **`DELETE`**| Delete | No | **Yes** | Optional / Rare | Removes a specified resource from the server. |
+| **`HEAD`** | Read Metadata | **Yes** | **Yes** | No | Same as `GET`, but returns ONLY response headers (no body). |
+
+HTTP Methods are governed by two critical terms:
+1. __Safe Methods__: Methods that do not modify the state of the server, such as `GET`.
+2. __Indempotent Methods__: Methods where making the exact same request once vs. 100 times in a row yields the same server state result.
+
+For `POST` and `GET` requests, `http.Get` and `http.Post` can be used respectively, but for `PUT`, `PATCH`, and `DELETE`, the `http.NewRequest()` is needed:
+```go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+)
+
+type User struct {
+	Name string `json:"name"`
+}
+
+func main() {
+	user := User{Name: "Alice"}
+	bodyBytes, _ := json.Marshal(user)
+
+	// 1. Create a PUT request
+	req, err := http.NewRequest("PUT", "https://api.example.com/users/123", bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// 2. Execute via client
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+}
+```
+Go offers three ways to send a `GET` requests:
+1. `http.Get(url)`: The quick and short way to execute a simple request that uses the built-in `httpDefaultClient`. It should be used for quick CLI tools, test scripts, or one-off exploratory scripts where default settings are fine and custom headers aren't needed.
+	- __Drawback__: Uses `http.DefaultClient`, which has no timeout. If the destination server hangs, the application hangs forever.
+2. `http.NewRequest("GET", ...) + client.Do(req)`: This is the _production standard_ that build an explicit `*http.Request` struct first, allowing you to attach custom headers, auth tokens, or context timeouts before passing it to an `http.Client`. It should be used for production backend microservices, interacting with authenticated APIs, or when you need fine-grained control over request headers.
+```go
+// 1. Define a client with a strict safety timeout
+client := &http.Client{Timeout: 5 * time.Second}
+
+// 2. Build the request object
+req, err := http.NewRequest("GET", "https://api.example.com/items", nil)
+if err != nil {
+    return err
+}
+
+// 3. Attach custom metadata / headers
+req.Header.Set("Authorization", "Bearer TOKEN_HERE")
+req.Header.Set("Accept", "application/json")
+
+// 4. Execute
+resp, err := client.Do(req)
+if err != nil {
+    return err
+}
+defer resp.Body.Close()
+```
+3. `http.NewRequestWithContext(ctx, "GET", ...)`: The Concurrent/Cancellation Pattern that binds an HTTP request to a Go `context.Context` object. It should be used for server requests that spawn outgoing API calls, or concurrent applications where you need to cancel an in-flight network request if another routine fails or if a user closes their connection.
+```go
+// Automatically cancels the GET call if it takes longer than 2 seconds
+ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+defer cancel()
+
+req, err := http.NewRequestWithContext(ctx, "GET", "https://api.example.com/items", nil)
+if err != nil {
+    return err
+}
+
+resp, err := client.Do(req)
+if err != nil {
+    return err // Triggers if context timeout expires before server answers
+}
+defer resp.Body.Close()
+```
+| Approach | Syntax Pattern | Best Used For | Key Advantage / Tradeoff |
+| :--- | :--- | :--- | :--- |
+| **`http.Get`** | `http.Get(url)` | Quick scripts, prototyping, simple public reads. | **Pros:** Zero setup.<br>**Cons:** No timeout, no custom headers. |
+| **`http.NewRequest` + `Do`** | `req, _ := http.NewRequest("GET", url, nil)`<br>`client.Do(req)` | **Production standard.** APIs requiring auth tokens, custom headers, or global client timeouts. | **Pros:** Full control over headers and client configuration.<br>**Cons:** Requires slightly more boilerplate. |
+| **`http.NewRequestWithContext`** | `req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)` | Microservices, web servers, concurrent routines with timeouts/cancellation. | **Pros:** Prevents wasted resources by canceling requests when context expires.<br>**Cons:** Requires managing Go contexts. |
+
+__HTTP Status Codes__ are 3-digit integer responses issued by a server to communicate the outcome of a client's request. The client needs an instant, standardized way to know if the request succeeded, if data was missing, if authentication failed, or if the server crashed—without having to parse the response body text first. They grouped into categories:
+- `100-199`: Informational responses. These are very rare.
+- `200-299`: Successful responses. Hopefully, most responses are 200's!
+- `300-399`: Redirection messages. These are typically invisible because the browser or HTTP client will automatically do the redirect.
+- `400-499`: Client errors. You'll see these often, especially when trying to debug a client application
+- `500-599`: Server errors. You'll see these sometimes, usually only if there is a bug on the server.
+
+__Common Codes Developers Should Know__:
+| Code | Name | Category | Primary Meaning & Backend Use Case |
+| :--- | :--- | :--- | :--- |
+| **`200`** | **OK** | Success | Standard response for successful `GET`, `PUT`, or `PATCH` requests. |
+| **`201`** | **Created** | Success | Request succeeded and a new resource was created (commonly returned after a successful `POST`). |
+| **`204`** | **No Content** | Success | Request succeeded, but there is no payload/body to return (common for `DELETE` operations). |
+| **`301`** | **Moved Permanently** | Redirection | The requested resource has permanently moved to a new URL (specifies `Location` header). |
+| **`302`** | **Found / Temporary Redirect** | Redirection | The resource is temporarily at a different URL. |
+| **`304`** | **Not Modified** | Redirection | Tells the client their cached copy is still fresh; no need to re-download the body. |
+| **`400`** | **Bad Request** | Client Error | The server cannot parse the request (e.g., malformed JSON payload or missing parameters). |
+| **`401`** | **Unauthorized** | Client Error | Authentication is required (missing or invalid API token/credentials). |
+| **`403`** | **Forbidden** | Client Error | The client is authenticated, but lacks permissions/rights to access the resource. |
+| **`404`** | **Not Found** | Client Error | The requested endpoint or database record does not exist on the server. |
+| **`405`** | **Method Not Allowed** | Client Error | The endpoint exists, but doesn't support the HTTP verb used (e.g., sending `POST` to a `GET`-only route). |
+| **`409`** | **Conflict** | Client Error | Request conflicts with current server state (e.g., trying to register a duplicate email). |
+| **`429`** | **Too Many Requests** | Client Error | The client has exceeded rate limits; stop spamming requests! |
+| **`500`** | **Internal Server Error** | Server Error | The server encountered an unhandled exception or bug (e.g., unhandled panic, database crash). |
+| **`502`** | **Bad Gateway** | Server Error | An upstream service or reverse proxy (like NGINX) received an invalid response from the backend. |
+| **`503`** | **Service Unavailable** | Server Error | The server is temporarily down due to maintenance or extreme traffic overload. |
+| **`504`** | **Gateway Timeout** | Server Error | An upstream server took too long to respond to a proxy/gateway. |
+
+Go provides clear constants in the `net/http` package where the `http.Response` struct has a `.StatusCode` property so developers do not have to manually write status codes and their meaning:
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+)
+
+func handleResponse(resp *http.Response) {
+	// Instead of checking against 200, use Go's readable constants
+	if resp.StatusCode == http.StatusOK {
+		fmt.Println("Success!")
+	}
+
+	if resp.StatusCode == http.StatusCreated {
+		fmt.Println("Resource created!")
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		fmt.Println("Resource missing!")
+	}
+
+	if resp.StatusCode >= http.StatusInternalServerError {
+		fmt.Println("Server error on their end!")
+	}
+}
+```
+
 ### Paths
+
 ### HTTPS
 ### Errors
 ### cURL
