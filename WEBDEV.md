@@ -697,4 +697,139 @@ func newLocalHTTPSClient(certPath string) (*http.Client, error) {
 }
 ```
 ### Errors
+In Go, it is mandatory to handle both netwrok and non-ok errors when getting responses from the server.
+
+Networked errors occur when there are issues reaching the server such as connection problems, DNS failures or timeouts. These can be checked and logged:
+```go
+res, err := http.Get("https://example.com/api/resource")
+if err != nil {
+    log.Printf("Network error: %v", err)
+    return
+}
+defer res.Body.Close()
+```
+
+Non-Ok Responses: Occurs when the server returns an unsuitable status code such as `404` (Not Found), which need to be handled separately from network errors.
+```go
+res, err := http.Get("https://example.com/api/resource")
+if err != nil {
+    fmt.Println("a network error occurred")
+    return
+}
+defer res.Body.Close()
+
+if res.StatusCode != http.StatusOK {
+    fmt.Println("status code != 200")
+    return
+}
+```
+
+Error handling is essentially code that can handle edge cases. It is an automatic process that developers write in their code that can take care of things like bad user inputs and connection issues. However, error handling is not debugging, as bugs occur due to writing bad code or making mistakes.
+
 ### cURL
+__Client URL `cURL`__ is an universal, open source command-line tool used to transfer data to and from a server using various protocols like HTTP, HTTPS, and FTP. Before writing Go code to consume an API, developers use cURL in the terminal to inspect raw headers, debug responses, test status codes, and verify API endpoints. It is the industry standard tool for quick network testing. In addition to testing, it can be used for:
+- __Automation__: can be used in scripts and automate workflows.
+- __Debugging__: easily view requests and responses.
+
+To view if `cURL` is already installed on Unix-based systems:
+```bash
+curl --version
+```
+| Flag | Full Name | Purpose & Primary Use Case |
+| :--- | :--- | :--- |
+| **`-X`** | `--request` | Specifies the HTTP method verb to use (`GET`, `POST`, `PUT`, `DELETE`). Default is `GET`. |
+| **`-H`** | `--header` | Passes custom HTTP headers (e.g., `-H "Content-Type: application/json"`). |
+| **`-d`** | `--data` | Sends HTTP body payload data (used for `POST`, `PUT`, `PATCH` requests). |
+| **`-i`** | `--include` | Displays response headers **along with** the response body in the output. |
+| **`-I`** | `--head` | Makes a `HEAD` request to fetch **ONLY** the response headers (no body). |
+| **`-v`** | `--verbose` | Shows the entire handshake, TLS details, raw outgoing request, and raw response. Excellent for deep debugging! |
+| **`-L`** | `--location` | Tells cURL to automatically follow HTTP redirects (301/302 status codes). |
+| **`-k`** | `--insecure` | Bypasses TLS/SSL certificate verification (cURL's equivalent of Go's `InsecureSkipVerify: true`). |
+
+A GET request only requires a url where the output is written to the `stdout`:
+```bash
+curl https://api.boot.dev/v1/courses
+
+# Redirect output to a file
+curl https://jsonplaceholder.typicode.com/users/1 > user1.json
+```
+The `stdout` allows other commands to be used and the output to be sent directly to a file.
+
+A POST request can be sent using the `-X` flag to indicate a POST, the `H` option to send JSON data with info being for the header, and the `d` option for the data:
+```bash
+curl -X POST https://api.example.com/v1/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -d '{"name": "Alice", "role": "admin"}'
+```
+Note that the JSON payload (`d`) has to be surrounded by single quotes for the shell to interpret it.
+
+Using PUT and DELETE
+```bash
+# PUT Request
+curl -X PUT https://api.example.com/v1/users/42 -H "Content-Type: application/json" -d '{"name": "Bob"}'
+
+# DELETE Request
+curl -X DELETE https://api.example.com/v1/users/42
+```
+
+`jq` is a lightweight, high-performance command-line JSON processor that is used to parse, slice, and filter structured JSON data directly in the terminal. API responses returned via `cURL` are typically minified, unformatted strings. `jq` lets you pretty-print raw JSON, extract specific nested keys, filter arrays, and map fields into clean terminal output without writing throwaway Go code just to inspect data.
+
+Check the version or install if it's not there:
+```bash
+jq --version
+brew install jq
+```
+Data from a json file can be easily extracted:
+```bash
+jq 'name' user.json
+```
+
+When using `curl` the object identifier index can be used ti extract a specific field:
+```bash
+curl https://jsonplaceholder.typicode.com/users/1 | jq .username
+# "Bret"
+```
+To obtain a field from all elements in an array the array/object value iterator `.[]` is used:
+```bash
+# Extract course titles from each array
+curl -s https://api.boot.dev/v1/courses | jq '.[].title'
+# Output:
+# "Learn Go"
+# "Learn HTTP Clients"
+```
+__More examples__:
+```bash
+# Multiple fields
+curl https://jsonplaceholder.typicode.com/users/1 | jq '.name, .email'
+# "Leanne Graham"
+# "Sincere@april.biz"
+
+# Specific fields
+curl -s https://api.boot.dev/v1/courses | jq '.[] | {course_id: .id, name: .title}'
+# Output:
+# { "course_id": 101, "name": "Learn Go" }
+# { "course_id": 102, "name": "Learn HTTP Clients" }
+
+# Simple Pretty-print 
+curl -s https://api.boot.dev/v1/courses | jq '.'
+```
+| Expression | Syntax Pattern | What It Does / Primary Purpose |
+| :--- | :--- | :--- |
+| **Identity / Pretty Print** | `jq '.'` | Formats, colorizes, and indents raw unformatted JSON. |
+| **Field Access** | `jq '.name'` | Accesses the value of a top-level key (`"name"`). |
+| **Nested Field Access** | `jq '.user.email'` | Navigates down nested JSON object structures. |
+| **Array Index** | `jq '.[0]'` | Retrieves the first item from a JSON array. |
+| **Array Iterator** | `jq '.[]'` | Flattens an array, emitting each element individually. |
+| **Array Mapping** | `jq '.[].title'` | Extracts a specific key from *every* object in an array. |
+| **Slice Array** | `jq '.[0:3]'` | Slices the first 3 elements of a JSON array. |
+| **Construct New Object** | `jq '{user: .name, id: .id}'` | Re-shapes the JSON output into a brand-new custom structure. |
+
+_Don't firget to use the Silent `-s` flag: By default, cURL outputs progress meters (bytes downloaded, speed) to `stderr`. When piping to `jq`, those progress bars can clutter your screen. Always pass `-s` (silent mode) to cURL when piping into `jq`._
+
+Alternative `jq` formatting options in a output file:
+| Desired Output Format | `jq` Expression | Example Output Structure |
+| :--- | :--- | :--- |
+| **Interleaved Plain Values** | `jq '.[].title, .[].estimate'` | `"Title A"`<br>`"Title B"`<br>`2`<br>`5` |
+| **Object per Issue** | `jq '.[] \| {title: .title, estimate: .estimate}'` | `{"title": "Title A", "estimate": 2}`<br>`{"title": "Title B", "estimate": 5}` |
+| **Combined String per Line** | `jq '.[] \| "\(.title): \(.estimate) hrs"'` | `"Title A: 2 hrs"`<br>`"Title B: 5 hrs"` |
