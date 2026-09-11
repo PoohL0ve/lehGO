@@ -15,6 +15,8 @@ func TestAdder(t *testing.T) {
 }
 
 func ExampleAdd() {
+	// Documentation will always reflect current code behaviour
+	// The comment at the button ensure the ExampleAdd() is executed in the test
 	sum := Add(1, 5)
 	fmt.Println(sum)
 	// Output: 6
