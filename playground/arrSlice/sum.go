@@ -8,3 +8,13 @@ func Sum(figures []int) int {
 	}
 	return addFigures
 }
+
+func SumAll(numbersToSum ...[]int) []int {
+	var addAll []int
+
+	for _, numbers := range numbersToSum {
+		addAll = append(addAll, Sum(numbers))
+	}
+
+	return addAll
+}
