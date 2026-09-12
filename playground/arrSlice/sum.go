@@ -1,6 +1,6 @@
 package arrSlice
 
-func Sum(figures [5]int) int {
+func Sum(figures []int) int {
 	addFigures := 0
 
 	for _, figure := range figures {

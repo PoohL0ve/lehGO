@@ -3,11 +3,13 @@ package arrSlice
 import "testing"
 
 func TestSum(t *testing.T) {
-	numbers := [5]int{1, 2, 3, 4, 5}
-	actual := Sum(numbers)
-	expected := 15
+	t.Run("Dynamic collection", func(t *testing.T) {
+		numbers := []int{1, 2, 4}
+		actual := Sum(numbers)
+		expected := 7
 
-	if actual != expected {
-		t.Errorf("Wanted: %d but Recevied: %d from %v", expected, actual, numbers)
-	}
+		if actual != expected {
+			t.Errorf("Wanted: %d but Received: %d from %v", expected, actual, numbers)
+		}
+	})
 }
