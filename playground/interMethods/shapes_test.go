@@ -16,19 +16,23 @@ func TestArea(t *testing.T) {
 	// Using Table-Driven Tests: For creating a list of test cases
 	// ... to be tested the same way
 	areaTests := []struct {
-		shape    Shape
-		expected float64
+		name    string
+		shape   Shape
+		hasArea float64
 	}{
-		{Rectangle{10.5, 2.0}, 21.0},
-		{Circle{10.0}, 314.1592653589793},
-		{Triangle{12.0, 6.0}, 36.0},
+		// Added named fields
+		{name: "Rectangle", shape: Rectangle{Width: 10.5, Height: 2.0}, hasArea: 21.0},
+		{name: "Circle", shape: Circle{Radius: 10.0}, hasArea: 314.1592653589793},
+		{name: "Triangle", shape: Triangle{Base: 12.0, Height: 6.0}, hasArea: 36.0},
 	}
 
 	// Iterate over the struct object
 	for _, areat := range areaTests {
-		actual := areat.shape.Area()
-		if actual != areat.expected {
-			t.Errorf("Needed an area of %g but got %g instead", areat.expected, actual)
-		}
+		t.Run(areat.name, func(t *testing.T) {
+			actual := areat.shape.Area()
+			if actual != areat.hasArea {
+				t.Errorf("%#v got %g want %g", areat.shape, actual, areat.hasArea)
+			}
+		})
 	}
 }
