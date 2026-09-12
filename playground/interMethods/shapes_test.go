@@ -13,8 +13,9 @@ func TestPerimeter(t *testing.T) {
 }
 
 func TestArea(t *testing.T) {
-	checksums := func(t *testing.T, actual, expected float64) {
+	checkArea := func(t *testing.T, shape Shape, expected float64) {
 		t.Helper()
+		actual := shape.Area()
 		if actual != expected {
 			t.Errorf("Needed an area of %g but got %g instead", expected, actual)
 		}
@@ -22,16 +23,11 @@ func TestArea(t *testing.T) {
 
 	t.Run("Area for Rectangle", func(t *testing.T) {
 		rectangle := Rectangle{10.5, 2.0}
-		actual := rectangle.Area()
-		expected := 21.0
-		checksums(t, actual, expected)
+		checkArea(t, rectangle, 21.0)
 	})
 
 	t.Run("Area for Circle", func(t *testing.T) {
 		circle := Circle{10.0}
-		actual := circle.Area()
-		expected := 314.1592653589793
-
-		checksums(t, actual, expected)
+		checkArea(t, circle, 314.1592653589793)
 	})
 }
