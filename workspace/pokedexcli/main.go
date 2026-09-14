@@ -6,50 +6,8 @@ import (
 	"os"
 )
 
-// Composite structure to define commands
-type cliCommand struct {
-	name        string
-	description string
-	callback    func() error
-}
-
-func commandExit() error {
-	fmt.Println("Closing the Pokedex... Goodbye!")
-	os.Exit(0)
-	return nil
-}
-
-func commandHelp() error {
-	fmt.Println()
-	fmt.Println("Welcome to the Pokedex!")
-	fmt.Println("Usage:")
-	fmt.Println()
-
-	commands := getCommands()
-	for _, cmd := range commands {
-		fmt.Printf("%s: %s\n", cmd.name, cmd.description)
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func getCommands() map[string]cliCommand {
-	return map[string]cliCommand{
-		"help": {
-			name:        "help",
-			description: "Displays a help message",
-			callback:    commandHelp,
-		},
-		"exit": {
-			name:        "exit",
-			description: "Exit the Pokedex Cli",
-			callback:    commandExit,
-		},
-	}
-}
-
 func main() {
+	cfg := initialConfig() // Initialize shared config state
 	scanner := bufio.NewScanner(os.Stdin)
 
 	// Print initial prompt before waiting for input
@@ -66,11 +24,15 @@ func main() {
 
 		// Access the first word cleanText[0] safely
 		inform := cleanText[0]
+		args := []string{}
+		if len(cleanText) > 1 {
+			args = cleanText[1:] // Extract arguments after command
+		}
 
 		// Check for existing command
-		command, exists := getCommands()[inform]
+		command, exists := getCommands(cfg)[inform]
 		if exists {
-			err := command.callback()
+			err := command.callback(cfg, args)
 			if err != nil {
 				fmt.Println(err)
 			}

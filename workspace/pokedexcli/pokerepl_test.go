@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -15,21 +16,15 @@ func TestCleanInput(t *testing.T) {
 		{name: "Simple", textInput: "This ain't It ", expected: []string{"this", "ain't", "it"}},
 		{name: "Too Much Space", textInput: " hello world  ", expected: []string{"hello", "world"}},
 		{name: "Complex", textInput: "Come Back, This  IS where YOU belong", expected: []string{"come", "back,", "this", "is", "where", "you", "belong"}},
+		{name: "Empty", textInput: "", expected: []string{}},
 	}
 
 	for _, test := range testCases {
+		// Subtests
 		t.Run(test.name, func(t *testing.T) {
 			actual := cleanInput(test.textInput)
-			if len(actual) != len(test.expected) {
-				t.Errorf("Wanted: %v but got %v", test.expected, actual)
-			}
-			for i := range actual {
-				word := actual[i]
-				expectedWord := test.expected[i]
-
-				if word != expectedWord {
-					t.Fatalf("Needed: %s but Got %s", expectedWord, word)
-				}
+			if !slices.Equal(actual, test.expected) {
+				t.Errorf("cleanInput(%q):\nwanted: %v\ngot: %v", test.textInput, test.expected, actual)
 			}
 		})
 	}
