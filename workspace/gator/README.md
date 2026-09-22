@@ -100,6 +100,11 @@ WHERE name = $1;
 #### Query Reference (`sql/queries/feeds.sql`)
 * **`CreateFeed`**: `-- name: CreateFeed :one` — Inserts a new feed associated with a user ID and returns the created record.
 * **`GetFeeds`**: `-- name: GetFeeds :many` — Returns all feeds joined with the creator's username (`feeds JOIN users`).
+* **`GetFeedByURL`**: `-- name: GetFeedByURL :one` — Looks up a feed record by its URL.
+
+#### Query Reference (`sql/queries/feed_follows.sql`)
+* **`CreateFeedFollow`**: `-- name: CreateFeedFollow :one` — Inserts a feed follow record using a CTE and returns the full row along with the linked `user_name` and `feed_name`.
+* **`GetFeedFollowsForUser`**: `-- name: GetFeedFollowsForUser :many` — Returns all feed follow rows for a given user ID, joining feed and user names.
 
 ### PostgreSQL Driver (`github.com/lib/pq`)
 
@@ -146,6 +151,17 @@ Example RSS XML Schema:
 </rss>
 ```
 
+## Feed Following System
+
+The feed following system introduces a many-to-many relationship between users and RSS feeds using a `feed_follows` join table.
+
+* **Many-to-Many Architecture:** Multiple users can follow the same unique feed URL, and a single user can follow multiple feeds.
+* **Cascade Deletions:** Deleting a user or feed automatically purges all corresponding `feed_follows` entries (`ON DELETE CASCADE`).
+* **Uniqueness Guarantee:** A composite unique constraint on `(user_id, feed_id)` prevents users from following the same feed multiple times.
+
+```bash
+goose -dir sql/schema postgres "postgres://@localhost:5432/gator?sslmode=disable" up
+```
 
 ## Aggregator
 
@@ -163,3 +179,6 @@ The application uses a hand-rolled CLI router mapping command strings to handler
 |**`agg`** | `gator agg` | Fetches, parses, and outputs RSS feeds.|
 | **`addfeed`** | `gator addfeed <name> <url>` | Creates a new feed record linked to the currently logged-in user. |
 | **`feeds`** | `gator feeds` | Lists all feeds in the database along with their URLs and creator usernames. |
+| **`follow`** | `gator follow <url>` | Follows an existing RSS feed for the current user. |
+| **`following`** | `gator following` | Lists all RSS feeds currently followed by the logged-in user. |
+| **`unfollow`** | `gator unfollow <url>` | Unfollows an RSS feed for the currently logged-in user. |
