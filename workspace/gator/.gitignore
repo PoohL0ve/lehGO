@@ -1,0 +1,21 @@
+# Compiled binaries / executables
+gator
+gator.exe
+*.exe
+*.exe archive
+*.bin
+*.out
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IDE and Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / local config files containing sensitive db credentials
+*.env
+.env

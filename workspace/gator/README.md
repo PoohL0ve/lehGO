@@ -101,10 +101,16 @@ WHERE name = $1;
 * **`CreateFeed`**: `-- name: CreateFeed :one` — Inserts a new feed associated with a user ID and returns the created record.
 * **`GetFeeds`**: `-- name: GetFeeds :many` — Returns all feeds joined with the creator's username (`feeds JOIN users`).
 * **`GetFeedByURL`**: `-- name: GetFeedByURL :one` — Looks up a feed record by its URL.
+* **`MarkFeedFetched`**: `-- name: MarkFeedFetched :exec` — Updates `last_fetched_at` and `updated_at` timestamps.
+* **`GetNextFeedToFetch`**: `-- name: GetNextFeedToFetch :one` — Fetches the oldest updated feed (`ORDER BY last_fetched_at ASC NULLS FIRST`).
 
 #### Query Reference (`sql/queries/feed_follows.sql`)
 * **`CreateFeedFollow`**: `-- name: CreateFeedFollow :one` — Inserts a feed follow record using a CTE and returns the full row along with the linked `user_name` and `feed_name`.
 * **`GetFeedFollowsForUser`**: `-- name: GetFeedFollowsForUser :many` — Returns all feed follow rows for a given user ID, joining feed and user names.
+
+#### Query Reference (`sql/queries/posts.sql`)
+* **`CreatePost`**: `-- name: CreatePost :one` — Inserts a newly scraped feed item.
+* **`GetPostsForUser`**: `-- name: GetPostsForUser :many` — Retrieves latest posts from all feeds followed by a user.
 
 ### PostgreSQL Driver (`github.com/lib/pq`)
 
@@ -127,6 +133,10 @@ type state struct {
 * **`name`**: Feed name string.
 * **`url`**: Unique feed URL.
 * **`user_id`**: Foreign key pointing to `users(id)` with `ON DELETE CASCADE`.
+* **`last_fetched_at`**: Nullable timestamp recording the last time RSS items were fetched.
+
+#### `posts` Table
+* **`posts`**: Stores scraped RSS posts with unique URLs, descriptions, publication dates, and foreign key references to `feeds`.
 
 ## RSS
 
@@ -182,3 +192,41 @@ The application uses a hand-rolled CLI router mapping command strings to handler
 | **`follow`** | `gator follow <url>` | Follows an existing RSS feed for the current user. |
 | **`following`** | `gator following` | Lists all RSS feeds currently followed by the logged-in user. |
 | **`unfollow`** | `gator unfollow <url>` | Unfollows an RSS feed for the currently logged-in user. |
+| **`agg`** | `gator agg <time_between_reqs>` | Starts a continuous loop scraping RSS feeds sequentially based on specified duration (e.g., `1m`, `10s`). |
+| **`browse`** | `gator browse [limit]` | Displays latest posts from feeds followed by the logged-in user (default limit: 2). |
+
+## Installation
+
+### Prerequisites
+* **PostgreSQL** installed and running on your system.
+* **Go** (version 1.22 or higher) installed.
+
+### Installing `gator`
+
+You can install `gator` directly using Go:
+
+```bash
+go install [github.com/PoohL0ve/lehGO/workspace/gator@latest](https://github.com/PoohL0ve/lehGO/workspace/gator@latest)
+```
+### Initial Configuration
+Ensure that Postgres is installed on your systems and create a database:
+```bash
+createdb gator
+```
+Additionally, check that all the tools used like goose are installed globally. Run a  `up` migration using:
+```bash 
+goose -dir sql/schema postgres "postgres://@localhost:5432/gator?sslmode=disable" up
+```
+
+In your home directory create a `.gatorconfig.json` file then add the following details to it:
+```bash
+{
+  "db_url": "postgres://<your-db-user>:@localhost:5432/gator?sslmode=disable",
+  "current_user_name": ""
+}
+```
+
+Register a user for the system and start exploring the different commands:
+```bash
+gator register <your_username>
+```

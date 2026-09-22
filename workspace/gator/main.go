@@ -23,7 +23,7 @@ func main() {
 
 	db, err := sql.Open("postgres", storedData.DBURL)
 	if err != nil {
-		log.Fatalf("Error connecting to databse: %w", err)
+		log.Fatalf("Error connecting to databse: %v", err)
 	}
 
 	dbQueries := database.New(db)
@@ -47,6 +47,7 @@ func main() {
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	if len(os.Args) < 2 {
 		log.Fatal("Error: not enough arguments provided")
