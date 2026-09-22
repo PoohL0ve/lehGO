@@ -1,6 +1,6 @@
 # Gator
 
-A CLI tool that allows users to:
+__gator__ is a CLI tool that allows users to:
 - Collect **RSS** feeds from across the internet.
 - Store collected data in **PostgreSQL**.
 - Follow and unfollow RSS feeds added by users.
