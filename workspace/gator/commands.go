@@ -15,7 +15,7 @@ type commands struct {
 func (c *commands) run(s *state, cmd command) error {
 	f, ok := c.registeredCommands[cmd.Name]
 	if !ok {
-		errors.New("Command not found")
+		return errors.New("Command not found")
 	}
 
 	return f(s, cmd)
