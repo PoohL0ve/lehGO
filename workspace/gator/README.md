@@ -1,6 +1,6 @@
 # Gator
 
-__gator__ is a CLI tool that allows users to:
+gator is a CLI tool that allows users to:
 - Collect **RSS** feeds from across the internet.
 - Store collected data in **PostgreSQL**.
 - Follow and unfollow RSS feeds added by users.
@@ -201,12 +201,12 @@ The application uses a hand-rolled CLI router mapping command strings to handler
 * **PostgreSQL** installed and running on your system.
 * **Go** (version 1.22 or higher) installed.
 
-### Installing `gator`
+### Installing gator
 
 You can install `gator` directly using Go:
 
 ```bash
-go install [github.com/PoohL0ve/lehGO/workspace/gator@latest](https://github.com/PoohL0ve/lehGO/workspace/gator@latest)
+go install https://github.com/PoohL0ve/lehGO/workspace/gator@latest
 ```
 ### Initial Configuration
 Ensure that Postgres is installed on your systems and create a database:
@@ -226,7 +226,18 @@ In your home directory create a `.gatorconfig.json` file then add the following 
 }
 ```
 
+## Example Usage
 Register a user for the system and start exploring the different commands:
 ```bash
 gator register <your_username>
+```
+
+Start the aggregator in gator:
+```bash
+gator agg 10s
+```
+
+Browse feeds with gator:
+```bash
+gator browse <limit>
 ```
