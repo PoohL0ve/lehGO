@@ -1,26 +1,71 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
+	"os"
 	"time"
+
+	"chirpy/internal/database"
+	"chirpy/internal/handlers"
+
+	"github.com/joho/godotenv"
+
+	_ "github.com/lib/pq"
 )
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
 func main() {
-	mux := http.NewServeMux() // routes requests
-	// Convert current (.) directory to http.Dir
-	mux.HandleFunc("/healthz", healthHandler) // register readiness endpoint
-	fileDir := http.Dir(".")
-	// Handler pointing to directory
-	fileServer := http.FileServer(fileDir)
+	// Load env file from current directory
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error laoding env: %v", err)
+	}
 
-	// register server to the root path
-	mux.Handle("/app/", http.StripPrefix("/app/", fileServer))
+	// Read the db variable
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL environment variable is not set")
+	}
+
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM environment variable is not set")
+	}
+
+	log.Printf("Connecting to DB at: %s", dbURL)
+
+	// Connect to db
+	dbConnection, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Database connection error: %v", err)
+	}
+
+	defer dbConnection.Close()
+
+	// Initiate queries
+	dbQueries := database.New(dbConnection)
+
+	// Create config struct
+	apiCfg := handlers.NewAPIConfig(dbQueries, platform)
+	mux := http.NewServeMux() // routes requests
+
+	// Raw file server handler
+	fileServer := http.FileServer(http.Dir("."))
+	fileServerHandler := http.StripPrefix("/app/", fileServer)
+
+	wrappedFileServer := apiCfg.MiddlewareHitCounter(fileServerHandler)
+
+	// Register wrapped handlers to app
+	mux.Handle("/app/", wrappedFileServer)
+	mux.HandleFunc("GET /api/healthz", handlers.HealthHandler)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.HandlerMetrics)
+	mux.HandleFunc("GET /api/chirps", apiCfg.HandlerGetChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.HandlerGetChirp)
+
+	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
+	mux.HandleFunc("POST /api/chirps", apiCfg.HandlerCreateChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.HandlerCreateUser)
 
 	server := &http.Server{
 		Addr:              ":8080",

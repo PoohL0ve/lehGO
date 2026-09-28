@@ -1,0 +1,25 @@
+# Environment and sensitive data
+.env
+
+# Go binaries and build output
+chirpy
+out
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# IDE / OS generated files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local tooling binaries 
+goose
+sqlc
