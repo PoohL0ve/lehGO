@@ -123,3 +123,56 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		RefreshToken: refreshToken.Token,
 	})
 }
+
+// Updates users email and password using the PUT HTTP Method
+func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	// Extract access token
+	bearerToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Unable to access token")
+		return
+	}
+
+	// Validate the token and extract the user id
+	userID, err := auth.ValidateJWT(bearerToken, cfg.JWTSecret)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Unable to authorise user")
+		return
+	}
+
+	// Define request struct
+	type UpdateUserRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	req := UpdateUserRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Hash password
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Unable to hash password")
+		return
+	}
+
+	// Update user
+	updatedUser, err := cfg.DB.UpdateUser(r.Context(), database.UpdateUserParams{
+		Email:          req.Email,
+		HashedPassword: hashedPassword,
+		ID:             userID,
+	})
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Unable to update user")
+		return
+	}
+
+	RespondWithJSON(w, http.StatusOK, User{
+		ID:        updatedUser.ID,
+		CreatedAt: updatedUser.CreatedAt,
+		UpdatedAt: updatedUser.UpdatedAt,
+		Email:     updatedUser.Email,
+	})
+}
