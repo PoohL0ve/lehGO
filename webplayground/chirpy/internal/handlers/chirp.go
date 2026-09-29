@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"chirpy/internal/auth"
 	"chirpy/internal/database"
 	"chirpy/internal/profane"
 
@@ -36,9 +37,23 @@ func (cfg *ApiConfig) HandlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	const maxChirpLength = 140
 	params := parameters{}
 
+	// Extract token from header (authorisation)
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Unable to retrieve authorisation header")
+		return
+	}
+
+	// Validate token and extract userid
+	userID, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "Invalid or expired token")
+		return
+	}
+
 	// Decode message
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		RespondWithError(w, http.StatusBadRequest, "Something went wrong")
 		return
@@ -54,7 +69,7 @@ func (cfg *ApiConfig) HandlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	// Create a chirp
 	dbChirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleanedBody,
-		UserID: params.UserID,
+		UserID: userID, // Save authenticated id
 	})
 
 	if err != nil {

@@ -33,6 +33,12 @@ func main() {
 		log.Fatal("PLATFORM environment variable is not set")
 	}
 
+	// Get JWT
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is not set")
+	}
+
 	log.Printf("Connecting to DB at: %s", dbURL)
 
 	// Connect to db
@@ -47,7 +53,7 @@ func main() {
 	dbQueries := database.New(dbConnection)
 
 	// Create config struct
-	apiCfg := handlers.NewAPIConfig(dbQueries, platform)
+	apiCfg := handlers.NewAPIConfig(dbQueries, platform, jwtSecret)
 	mux := http.NewServeMux() // routes requests
 
 	// Raw file server handler
@@ -66,6 +72,9 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
 	mux.HandleFunc("POST /api/chirps", apiCfg.HandlerCreateChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.HandlerCreateUser)
+	mux.HandleFunc("POST /api/login", apiCfg.HandlerLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.HandlerRefresh)
+	mux.HandleFunc("POST /api/revoke", apiCfg.HandlerRevoke)
 
 	server := &http.Server{
 		Addr:              ":8080",
