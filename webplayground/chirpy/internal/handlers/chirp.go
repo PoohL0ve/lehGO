@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"time"
 
 	"chirpy/internal/auth"
@@ -91,7 +92,23 @@ func (cfg *ApiConfig) HandlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 // Retrieves all the chirps
 func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	dbChirps, err := cfg.DB.GetChirps(r.Context())
+	authorIDString := r.URL.Query().Get("author_id")
+
+	var dbChirps []database.Chirp
+	var err error
+
+	if authorIDString != "" {
+		authorID, parseErr := uuid.Parse(authorIDString)
+		if parseErr != nil {
+			RespondWithError(w, http.StatusBadRequest, "Invalid author ID")
+			return
+		}
+
+		dbChirps, err = cfg.DB.GetChirpsForAuthor(r.Context(), authorID)
+	} else {
+		dbChirps, err = cfg.DB.GetChirps(r.Context())
+	}
+
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Unable to retrieve chirps")
 		return
@@ -105,6 +122,20 @@ func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: dbChirp.UpdatedAt,
 			Body:      dbChirp.Body,
 			UserID:    dbChirp.UserID,
+		})
+	}
+
+	// Extract sort query parameter (defaults to "asc")
+	sortParam := r.URL.Query().Get("sort")
+
+	if sortParam == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	} else {
+		// Default behavior (asc)
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
 		})
 	}
 

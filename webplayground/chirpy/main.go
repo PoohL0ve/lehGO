@@ -39,6 +39,11 @@ func main() {
 		log.Fatal("JWT_SECRET environment variable is not set")
 	}
 
+	polkaKey := os.Getenv("POLKA_KEY")
+	if polkaKey == "" {
+		log.Fatal("POLKA_KEY environment variable is not set")
+	}
+
 	log.Printf("Connecting to DB at: %s", dbURL)
 
 	// Connect to db
@@ -53,7 +58,7 @@ func main() {
 	dbQueries := database.New(dbConnection)
 
 	// Create config struct
-	apiCfg := handlers.NewAPIConfig(dbQueries, platform, jwtSecret)
+	apiCfg := handlers.NewAPIConfig(dbQueries, platform, jwtSecret, polkaKey)
 	mux := http.NewServeMux() // routes requests
 
 	// Raw file server handler
@@ -75,6 +80,7 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiCfg.HandlerLogin)
 	mux.HandleFunc("POST /api/refresh", apiCfg.HandlerRefresh)
 	mux.HandleFunc("POST /api/revoke", apiCfg.HandlerRevoke)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.HandlerPolkaWebhook)
 
 	mux.HandleFunc("PUT /api/users", apiCfg.HandlerUpdateUser)
 
