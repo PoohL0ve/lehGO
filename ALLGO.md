@@ -15,7 +15,9 @@ To run Go a folder has to be initialised with a module file tracking dependencie
 ```bash
 go mod init structs-demo
 ```
-The `go.mod` file is a plain text file that declares the unique path of your module and states the version of Go your code requires. Historically, Go forced developers to put all their code inside one giant global system folder (the old $GOPATH). Go Modules changed this. A go.mod file tells the Go compiler: "Treat this specific folder as an isolated, self-contained workspace. Any files inside this folder belong to this project." Without it, the compiler cannot track imports or handle third-party libraries. Scripts cannot have _test_ in them as in `struct_test.go`.
+The `go.mod` file is a plain text file that declares the unique path of your module and states the version of Go your code requires. Historically, Go forced developers to put all their code inside one giant global system folder (the old $GOPATH). Go Modules changed this. A go.mod file tells the Go compiler: "Treat this specific folder as an isolated, self-contained workspace. Any files inside this folder belong to this project." Without it, the compiler cannot track imports or handle third-party libraries. If a program is meant to be downloaded, then the _module path_ should be the location from which the code can be downloaded from.
+
+Scripts cannot have _test_ in them as in `struct_test.go`. 
 
 Linting is the process of using a specialized tool, known as a linter, to perform static code analysis on source code without executing it.  The primary goal is to automatically detect programming errors, stylistic inconsistencies, and suspicious patterns that compilers or tests might miss, ensuring code adheres to predefined quality and style standards.
 ```bash
@@ -560,6 +562,7 @@ Go does not have a pointer arithmetic like C does.
 When dealing with pointers for structs, stick to using a _selector expression_:
 ```go
 // Selector Expression
+// Structs are automatically dereferenced.
 msgTotal := analytics.MessagesTotal
 // Do not do this:
 msgTotal := *analytics.MessagesTotal
@@ -839,6 +842,47 @@ Using __Subtests__ and __Table-Driven Tests__ together:
 - __Parallelism__: Subtests allow you to run test cases in parallel using `t.Parallel()` inside the loop, significantly speeding up test execution for I/O bound or heavy computations. 
 - __Scalability__: Adding a new test case is as simple as adding one line to the table, keeping the test file clean even as coverage grows.
 - __Better Organization__: They transform a flat list of test functions into a hierarchical structure, grouping related scenarios under a single parent test.
+
+```bash
+pkgsite -http localhost:8080 # Opens the docemntation
+
+# Run inside module to doc
+go doc ./integers
+go doc integers.Add
+```
+__N.B__: Packages has to be compiled with build to show usinf `pkgsite`.
+
+```bash
+# Identifies areas not covered by tests
+go test -cover
+```
+
+### Benchmarks
+They inform us of how long the function takes to execute on average by running it multiple times.
+```go
+func BenchmarkReapeat(b *testing.B) {
+	for b.Loop() {
+		Repeat("c")
+	}
+}
+```
+```bash
+go test -bench=.
+# Output: BenchmarkReapeat-8      16019007                74.45 ns/op
+# 74.45 is average nanoseconds, tested 16019007 times
+```
+Benchmarks run sequentially.
+```bash
+# Returns the number of bytes per iteration and the number of memory allocations per iteration
+go test -bench=. -benchmem
+# BenchmarkReapeat-8      82269552                14.21 ns/op            8 B/op          1 allocs/op
+```
+
+`errcheck` is a useful tool for analysig silent errors. It does work on defined errors:
+```bash
+# Install
+go install github.com/kisielk/errcheck@latest
+
 
 ## Concurrecy
 Go is a __concurrent__ language. __Concurrency__ is the ability to make progress on multiple tasks before waiting for each one to finish. __Parallelism__ is the ability to run multiple tasks at the same time, such as with multiple cores where each core can run a task. Currency is handled in go using Goroutines and Channels.
