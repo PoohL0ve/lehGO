@@ -1,0 +1,2 @@
+## Dependecy Injection
+DI enhaces writing tests and general functions. It is a **design pattern** where a struct or function receives the tools (dependencies) it needs from the outside, rather than creating or hardcoding them inside itself. However, DI do not always require third party frameworks. Inject simply means to pass in. DI allows us to use interfaces which makes testing easier especially for functions that only display output in the console or do not return anything. It allows us to make simple *mocks* to test a function.
